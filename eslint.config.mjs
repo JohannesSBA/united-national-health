@@ -32,7 +32,7 @@ const eslintConfig = [
       "**/.turbo/**",
       "**/*.d.ts",
       "next.config.ts",
-      "vitest.config.ts",
+      "jest.config.ts",
       "webpack.config.ts",
     ],
   },

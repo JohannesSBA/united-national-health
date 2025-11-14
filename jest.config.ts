@@ -12,7 +12,7 @@ const config: Config = {
   testEnvironment: "jsdom",
   setupFilesAfterEnv: ["<rootDir>/jest.setup.ts"],
   moduleNameMapper: {
-    "^@/(.*)$": "<rootDir>/src/$1",
+    "^@/(.*)$": "<rootDir>/$1",
     "^.+\\.(css|sass|scss)$": "identity-obj-proxy",
     "^.+\\.(svg|png|jpg|gif)$": "<rootDir>/__mocks__/fileMock.js",
   },
