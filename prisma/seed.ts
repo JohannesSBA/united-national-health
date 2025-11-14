@@ -14,13 +14,16 @@ const roles = [
 ];
 
 async function main() {
-  for (const name of roles) {
-    await db.role.upsert({
-      where: { name },
-      update: {},
-      create: { name },
-    });
-  }
+  await Promise.all(
+    roles.map((name) =>
+      db.role.upsert({
+        where: { name },
+        update: {},
+        create: { name },
+      }),
+    ),
+  );
+  console.log(`Successfully seeded ${roles.length} roles`);
 }
 
 main()

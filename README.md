@@ -24,7 +24,7 @@ This project uses [`next/font`](https://nextjs.org/docs/app/building-your-applic
 
 Prisma models now capture the minimal governance structure needed across facilities:
 
-- `User` – uniquely identified by email + name and serves as the anchor for assignments.
+- `User` – uniquely identified by email and serves as the anchor for assignments.
 - `Role` – unique name per role; seeded with GlobalAdmin, HospitalAdmin, Doctor, Nurse, Pharmacist, LabTech, Registrar, Billing, Receptionist, and CareCoordinator.
 - `UserRole` – join table that enforces unique user/role combinations.
 - `Hospital` – unique name per facility.
