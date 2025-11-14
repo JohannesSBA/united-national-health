@@ -20,20 +20,34 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-## Learn More
+## Core Governance Data Model
 
-To learn more about Next.js, take a look at the following resources:
+Prisma models now capture the minimal governance structure needed across facilities:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `User` – uniquely identified by email + name and serves as the anchor for assignments.
+- `Role` – unique name per role; seeded with GlobalAdmin, HospitalAdmin, Doctor, Nurse, Pharmacist, LabTech, Registrar, Billing, Receptionist, and CareCoordinator.
+- `UserRole` – join table that enforces unique user/role combinations.
+- `Hospital` – unique name per facility.
+- `HospitalUser` – connects users to hospitals with unique membership constraints.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+The schema lives at `prisma/schema.prisma`, and the first migration (`20251114214830_init_core_identity`) creates the tables, indexes, and cascading foreign keys above.
 
-## Deploy on Vercel
+## Database Helper & Seeding
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- Instantiate Prisma via `lib/db.ts`, which imports the generated client from `generated/prisma`. Use this helper anywhere server-side access is required.
+- `prisma/seed.ts` upserts the base role catalog to keep the seed run idempotent.
+- The Prisma config (`prisma.config.ts`) points migrations to `prisma/migrations/` and wires the seed command to `tsx prisma/seed.ts`, so every `prisma migrate reset` or `prisma db seed` run shares the same entrypoint.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Running migrations & seeds locally
+
+After configuring `DATABASE_URL` (see next section) run:
+
+```bash
+npx prisma migrate dev --name init_core_identity
+npx prisma db seed
+```
+
+The migration command generates/updates the client automatically; the seed command replays the base roles and can be repeated safely.
 
 ## Database Container
 
