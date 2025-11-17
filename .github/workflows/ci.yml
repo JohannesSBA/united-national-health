@@ -19,7 +19,7 @@ env:
 
 jobs:
   quality:
-    name: Lint, Build, Test, & Docker
+    name: Lint, Build, Test, and Docker
     runs-on: ubuntu-latest
     services:
       postgres:
