@@ -65,6 +65,76 @@ The `/globaladmin` area is a server-rendered console dedicated to the highest-ti
 
 - **Maintenance mode toggle** plus uptime history live on `app/globaladmin/system-monitoring/page.tsx`. Settings persist via `SystemControlsPanel` and `/api/globaladmin/system/settings`.
 - **Integration/API key management** uses `/api/globaladmin/system/integrations` (create/rotate/disable) with hashed tokens stored in `IntegrationKey`.
+
+## Detailed Global Admin Branch Delta
+
+Every change in this branch focuses on the `/globaladmin` experience. The rundown below documents each page, backing API endpoint, and infrastructure tweak so reviewers can see exactly what shipped.
+
+### Server-rendered governance pages
+
+- `/globaladmin` (`app/globaladmin/page.tsx`)
+  - Pulls consolidated metrics via `getGlobalAdminDashboardData()` and `getAnalyticsSummary()` before rendering anything client-side.
+  - Surfaces KPI tiles, onboarding backlog (`PendingActionsList`), system health, a CSV-capable analytics module, and the `ActivityLog` that now links each row to `/globaladmin/security?log={id}` for deep dives.
+- `/globaladmin/hospitals` (`app/globaladmin/hospitals/page.tsx`)
+  - Calls `listHospitals()` to hydrate `HospitalCreateForm` and `HospitalList`, normalizing child relations (memberships, onboarding actions) for display.
+  - Metric tiles summarize registered facilities and account assignments so admins can gauge rollout velocity instantly.
+- `/globaladmin/administrators` (`app/globaladmin/administrators/page.tsx`)
+  - Executes three concurrent Prisma queries (global admins, hospital admins + memberships, hospital directory) and feeds those records into `AdminCreateForm` + `AdminList`.
+  - Presents a carded UI for provisioning new hospital admins, enumerating global operators, and governing local admins (status, assignments, password resets).
+- `/globaladmin/system-monitoring` (`app/globaladmin/system-monitoring/page.tsx`)
+  - Bundles `SystemControlsPanel` with maintenance-mode state (`SystemSetting` value), then renders latest uptime cards plus a timeline of status snapshots.
+  - Includes onboarding throughput (from `fetchPendingOnboardingActions`) so operators can correlate incidents with operational backlog.
+- `/globaladmin/security` (`app/globaladmin/security/page.tsx`)
+  - Aggregates admin activity, priority onboarding actions, `SystemSetting` records, access policies, security alerts, and hospital metadata.
+  - Hosts compliance controls: MFA + data retention forms, `AccessPolicyPanel`, `SecurityAlertsPanel`, high-priority task list, and the shared `ActivityLog` (complete with download button via `ActivityExportButton`).
+- `/globaladmin/settings` (`app/globaladmin/settings/page.tsx`)
+  - Displays deployment metadata, trusted origins, and admin counts derived from Prisma queries.
+  - Ships `IntegrationCreateForm`, `IntegrationList`, and `RolePolicyEditor` (with normalized permission arrays) so configuration changes stay in one pane.
+
+Every page wraps with `AdminPageTemplate`, `NoPhiBanner`, and `requireGlobalAdmin()` to guarantee RBAC enforcement before any data access.
+
+### API routes (all require `requireGlobalAdminFromRequest`)
+
+- `/api/globaladmin/analytics`
+  - `GET` → Returns governance KPIs from `getAnalyticsSummary()`.
+  - `/export` sub-route streams a CSV produced by `exportGovernanceReport()`.
+- `/api/globaladmin/audit-logs`
+  - `GET` → Returns the latest 100 `AdminActivity` entries; `/export` emits a 1,000-row CSV for compliance archiving.
+- `/api/globaladmin/hospitals`
+  - `GET` → Server map for every hospital (with counts and onboarding actions) used by dashboard + hospital directory.
+  - `POST` → Creates hospitals via `createHospital()` with actor attribution.
+  - `PATCH /[hospitalId]` → Either mutates metadata (`updateHospitalDetails`) or status (`changeHospitalStatus`).
+- `/api/globaladmin/hospital-admins`
+  - `GET` → Lists all hospital admins, including memberships for UI assignment chips.
+  - `POST` → Creates admins through `createHospitalAdmin()` and returns the temporary password text that is emailed via `sendTemporaryPasswordEmail`.
+  - `PATCH /[userId]` → Supports `reassign`, `status`, and `resetPassword` actions which call the corresponding helpers in `lib/services/global-admin/hospital-admins.ts`.
+- `/api/globaladmin/onboarding`
+  - `POST` → Adds custom onboarding tasks (`createCustomOnboardingAction`).
+  - `PATCH /[actionId]` → Records decisions (approve/reject) and cascades to the linked hospital through `handleOnboardingDecision()`.
+- `/api/globaladmin/access-policies`
+  - `GET` → Fetches all `AccessPolicy` records.
+  - `POST` → Drafts new policies via `createAccessPolicy()`; `PATCH /[policyId]` toggles between `approve` and `revoke` flows.
+- `/api/globaladmin/role-policies`
+  - `GET/PATCH` → CRUD interface for the `RolePolicy` table powering `RolePolicyEditor`.
+- `/api/globaladmin/security/alerts`
+  - `GET` → Surfaces alert history for the Security page.
+  - `POST` → Raises alerts via `raiseSecurityAlert()` (kept non-PHI); `PATCH /[alertId]` marks alerts resolved and logs the actor in `AdminActivity`.
+- `/api/globaladmin/system/settings`
+  - `GET` → Dumps every `SystemSetting` row.
+  - `PATCH` → Multiplexer for `maintenance_mode`, `mfa_policy`, `data_retention`, and any additional JSON-based settings through `upsertSystemSetting()`.
+- `/api/globaladmin/system/integrations`
+  - `GET` → Enumerates integration keys (last four digits, status, rotation timestamp).
+  - `POST` → Creates a key, returning the plaintext token once; rotation + status transitions live on `PATCH /[integrationId]` (now updated to Next.js 16's `NextRequest` signature).
+
+### Shared components & service layer adjustments
+
+- `app/components/admin/activity-log.tsx` now imports `next/link` and renders an inline “View audit details” link that routes operators straight to `/globaladmin/security?log={AdminActivity.id}` for context.
+- `SystemControlsPanel`, `IntegrationList`, `IntegrationCreateForm`, `RolePolicyEditor`, `SecurityAlertsPanel`, `AdminCreateForm`, `AdminList`, `Hospital*` components, analytics components, and action confirmation utilities were all wired into the pages above; each submits via `fetch()` to the endpoints listed here so everything stays server-driven.
+- `lib/services/global-admin/system.ts` constrains `upsertSystemSetting` to `Prisma.InputJsonValue`, ensuring every persisted setting is strongly typed JSON. The helpers (`toggleMaintenanceMode`, `configureMfaPolicy`, `updateDataRetention`, integration key helpers, policy helpers) share that return path.
+- `app/api/globaladmin/system/integrations/[integrationId]/route.ts` switched to `{ params: Promise<{ integrationId: string }> }` + `NextRequest`, matching Next.js 16 expectations and unblocking builds.
+- `lib/email.ts` can now leverage full type coverage because `@types/nodemailer` was added to `devDependencies`.
+
+Collectively these updates give product, security, and ops teammates an auditable, PHI-free cockpit with clearly delineated server APIs and UI entry points.
 - **Access policy approvals**, MFA toggles, and data retention updates all emit audit events for traceability.
 
 ### Analytics & oversight
