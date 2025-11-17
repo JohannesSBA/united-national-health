@@ -227,6 +227,19 @@ docker stop unh-db && docker rm unh-db
 
 Override the env vars above as needed for your environment. Prisma manages the schema and seed data, so after the database container is running point your `DATABASE_URL` to `postgres://unh_app:unh_local_password@localhost:5433/united_national_health` (or whatever you configure) and run your Prisma workflows, e.g. `npx prisma migrate deploy` or `npx prisma db seed`.
 
+Example `.env` entry:
+
+```
+DATABASE_URL=postgresql://unh_app:unh_local_password@localhost:5433/united_national_health?schema=public
+```
+
+Once the connection string is in place, run the standard Prisma workflow (migrate + seed) whenever you need to hydrate the governance data:
+
+```
+npx prisma migrate deploy
+npx prisma db seed
+```
+
 ## Authentication flow
 
 Better Auth powers the login stack so you can authenticate users and get their `userId` in API routes and server components.
