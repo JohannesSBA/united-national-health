@@ -49,6 +49,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Build database Docker image
+        run: docker build -f Dockerfile.db -t unh-db .
+
       - name: Generate Prisma Client
         run: npx prisma generate
 
@@ -60,6 +63,3 @@ jobs:
 
       - name: Run unit tests (pass if no tests)
         run: npm run test:ci
-
-      - name: Build database Docker image
-        run: docker build -f Dockerfile.db -t unh-db .
