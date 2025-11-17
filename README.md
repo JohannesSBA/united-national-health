@@ -22,6 +22,65 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Global Admin Console (Governance & Compliance)
+
+The `/globaladmin` area is a server-rendered console dedicated to the highest-tier operators. It never surfaces PHI and focuses exclusively on platform oversight. Key traits:
+
+- **Real data pipeline:** `lib/global-admin-data.ts` queries live Prisma tables for hospital counts, onboarding tasks, deployment status, and administrative audit events.
+- **Reusable layout:** Components under `components/admin/` (nav, page template, cards, activity log, PHI banner) deliver a consistent UI with Tailwind styling.
+- **Pages shipped:** Dashboard, Hospitals, Administrators, System Monitoring, Security & Compliance, and Settings live under `app/globaladmin/*` and each call `requireGlobalAdmin()` before rendering.
+- **Database support:** New Prisma models/migration (`20251115090000_add_admin_dashboard_entities`) add `OnboardingAction`, `AdminActivity`, `SystemStatus`, plus enums to capture governance-only telemetry.
+- **Seeding:** `prisma/seed.ts` now provisions hospitals, hospital admins, onboarding workflows, system status entries, and admin activity so the console renders meaningful information immediately after `npx prisma db seed`.
+
+### Security highlights
+
+- **Strict RBAC enforcement:** `lib/require-global-admin.ts` resolves the Better Auth session and validates a `GlobalAdmin` role for every page before data is fetched. Unauthenticated users go to `/login`; non-global roles are redirected home.
+- **Server-only rendering:** All admin views are React Server Components, so metrics and audit data never leave the server except as already-rendered HTML.
+- **No PHI banner + copy:** A prominent “No PHI Allowed” banner and contextual text reinforce that the console is solely for governance/compliance data.
+- **Governance-only tables:** New Prisma models intentionally store non-clinical data (system uptime, onboarding actions, admin activity), preventing accidental exposure of patient information.
+- **Environment-driven config:** The Settings page surfaces deployment metadata and trusted origins based on environment variables, helping operators verify security posture without exposing secrets.
+
+## Global Admin Feature Set
+
+### Platform governance
+
+- **Register/edit/suspend hospitals** via `app/globaladmin/hospitals/page.tsx` using modular components (`HospitalCreateForm`, `HospitalList`, `HospitalDetailsForm`). Backend endpoints: `POST/PATCH /api/globaladmin/hospitals` and `PATCH /api/globaladmin/hospitals/:id`.
+- **Approve or reject onboarding workflows** through `/api/globaladmin/onboarding/:actionId`. Decisions automatically drive `Hospital.status`.
+- **Deactivate/activate facilities** with `changeHospitalStatus` (sets `HospitalStatus` enum). Status changes propagate everywhere because pages read directly from Prisma.
+
+### User & access management
+
+- **Create, reassign, suspend, and reset Hospital Admin accounts** from `app/globaladmin/administrators/page.tsx`. Client components call `/api/globaladmin/hospital-admins` and `/api/globaladmin/hospital-admins/:userId` (actions: `reassign`, `status`, `resetPassword`).
+- **Role policy editor** in Settings updates `RolePolicy` records through `/api/globaladmin/role-policies`, defining which governance permissions each role receives.
+- **Activity log** (non-PHI) shows all privileged actions pulled from the `AdminActivity` table and `/api/globaladmin/audit-logs`.
+
+### Security, privacy & compliance
+
+- **MFA enforcement and data-retention forms** hit `/api/globaladmin/system/settings` with keys `mfa_policy` and `data_retention`.
+- **Cross-hospital policies** managed in UI (`AccessPolicyPanel`) and `/api/globaladmin/access-policies` endpoints. Policies can be drafted, approved, or revoked without touching clinical data.
+- **Security alerts** surface events from `SecurityAlert` with `/api/globaladmin/security/alerts`, including resolution workflow.
+- **Governance-only audit log** and `SystemSetting` store compliance controls; PHI is never queried.
+
+### System configuration & operations
+
+- **Maintenance mode toggle** plus uptime history live on `app/globaladmin/system-monitoring/page.tsx`. Settings persist via `SystemControlsPanel` and `/api/globaladmin/system/settings`.
+- **Integration/API key management** uses `/api/globaladmin/system/integrations` (create/rotate/disable) with hashed tokens stored in `IntegrationKey`.
+- **Access policy approvals**, MFA toggles, and data retention updates all emit audit events for traceability.
+
+### Analytics & oversight
+
+- **Platform analytics summary** aggregates Prisma data via `lib/services/global-admin/analytics.ts` and renders on the dashboard plus `/api/globaladmin/analytics`.
+- **Governance/export reports** produced by `/api/globaladmin/analytics/export` (CSV) and surfaced through `AnalyticsExportButton`.
+- **Usage metrics** rely on grouped Prisma queries (hospital status, onboarding queue, activity categories) so nothing sensitive is exposed.
+
+### Scalability, security, and editability
+
+- **Services-first architecture:** Business logic lives in `lib/services/global-admin/*`, so API routes and server components stay small and maintainable.
+- **Modular UI library:** Interactive pieces reside under `components/admin/**`, meaning pages compose small client/server components without bloating files.
+- **Strict RBAC guards:** All pages and routes call `requireGlobalAdmin` (or `requireGlobalAdminFromRequest`) before touching data, guaranteeing policy enforcement.
+- **Database-backed policies:** New enums/models (`HospitalStatus`, `SystemSetting`, `IntegrationKey`, `AccessPolicy`, `SecurityAlert`, `RolePolicy`) anchor every capability with auditable state.
+- **Non-PHI guarantee:** Every query targets governance tables only; banner copy and README warnings reiterate the restriction to prevent future regressions.
+
 ## Core Governance Data Model
 
 Prisma models now capture the minimal governance structure needed across facilities:
@@ -125,6 +184,12 @@ BETTER_AUTH_TRUSTED_ORIGINS=http://localhost:3000
 SEED_ADMIN_EMAIL=admin@unh.local
 SEED_ADMIN_PASSWORD=ChangeMeNow!123
 SEED_ADMIN_NAME=System Administrator
+SMTP_HOST=smtp.postmarkapp.com
+SMTP_PORT=587
+SMTP_USER=postmark-api-user
+SMTP_PASS=postmark-api-key
+SMTP_FROM="United National Health <governance@unh.gov>"
+SMTP_SECURE=false
 ```
 
 Use unique values per environment. `BETTER_AUTH_SECRET`/`AUTH_SECRET` must be strong cryptographic strings (generate via `openssl rand -base64 32`). `BETTER_AUTH_URL` as well as the trusted origins should point to the host serving `/api/auth`.
