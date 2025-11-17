@@ -21,6 +21,20 @@ jobs:
   quality:
     name: Lint, Build, Test, & Docker
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: unh_app
+          POSTGRES_PASSWORD: unh_local_password
+          POSTGRES_DB: united_national_health
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd="pg_isready -U unh_app -d united_national_health"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
 
     steps:
       - name: Checkout repository
