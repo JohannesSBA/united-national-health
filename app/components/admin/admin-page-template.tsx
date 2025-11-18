@@ -1,6 +1,7 @@
 import { ReactNode } from "react";
 import { AdminNav } from "./admin-nav";
 import { NoPhiBanner } from "./no-phi-banner";
+import { ActorLookupWidget } from "./actor-lookup-widget";
 
 type AdminPageTemplateProps = {
   activeKey: string;
@@ -53,6 +54,7 @@ export function AdminPageTemplate({
           Administration Office
         </footer>
       </div>
+      <ActorLookupWidget />
     </div>
   );
 }

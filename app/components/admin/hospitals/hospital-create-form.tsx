@@ -6,8 +6,16 @@ import { Input } from "@/app/components/ui/input";
 import { Label } from "@/app/components/ui/label";
 import { Button } from "@/app/components/ui/button";
 import { useActionConfirmation } from "@/app/components/admin/action-confirmation";
+import {
+  normalizeContactEmail,
+  normalizeContactPhone,
+} from "@/lib/contact-utils";
 
-export function HospitalCreateForm() {
+export function HospitalCreateForm({
+  existingContacts,
+}: {
+  existingContacts: { emails: string[]; phones: string[] };
+}) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -30,9 +38,24 @@ export function HospitalCreateForm() {
     }));
   };
 
+  const normalizedEmail = normalizeContactEmail(formState.contactEmail);
+  const normalizedPhone = normalizeContactPhone(formState.contactPhone);
+  const emailConflict =
+    !!normalizedEmail && existingContacts.emails.includes(normalizedEmail);
+  const phoneConflict =
+    !!normalizedPhone && existingContacts.phones.includes(normalizedPhone);
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
+    if (emailConflict || phoneConflict) {
+      setError(
+        emailConflict
+          ? "Another hospital already lists that contact email."
+          : "Another hospital already lists that contact phone.",
+      );
+      return;
+    }
     const confirmed = await confirmAction({
       title: "Confirm registration",
       description: `Register ${formState.name || "this hospital"} in the national registry? This creates an onboarding record and audit entry.`,
@@ -112,6 +135,11 @@ export function HospitalCreateForm() {
               value={formState.contactEmail}
               onChange={handleChange}
             />
+            {emailConflict ? (
+              <p className="mt-1 text-xs text-destructive">
+                This email is already assigned to another hospital.
+              </p>
+            ) : null}
           </div>
           <div>
             <Label htmlFor="hospital-phone">Contact phone</Label>
@@ -122,6 +150,11 @@ export function HospitalCreateForm() {
               value={formState.contactPhone}
               onChange={handleChange}
             />
+            {phoneConflict ? (
+              <p className="mt-1 text-xs text-destructive">
+                This phone number is already assigned to another hospital.
+              </p>
+            ) : null}
           </div>
         </div>
         <div>
@@ -136,7 +169,11 @@ export function HospitalCreateForm() {
           />
         </div>
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
-        <Button type="submit" disabled={isPending} className="w-full md:w-auto">
+        <Button
+          type="submit"
+          disabled={isPending || emailConflict || phoneConflict}
+          className="w-full md:w-auto"
+        >
           {isPending ? "Registering..." : "Register hospital"}
         </Button>
       </form>

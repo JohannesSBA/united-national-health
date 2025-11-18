@@ -26,6 +26,7 @@ export type AdministrativeActivity = {
   actor: string;
   action: string;
   scope: string;
+  metadata?: Record<string, unknown> | null;
 };
 
 export type GlobalAdminDashboardData = {
@@ -147,6 +148,7 @@ export async function fetchAdministrativeActivity(): Promise<
     actor: event.actor,
     action: event.action,
     scope: event.scope,
+    metadata: (event.metadata as Record<string, unknown> | null) ?? null,
   }));
 }
 

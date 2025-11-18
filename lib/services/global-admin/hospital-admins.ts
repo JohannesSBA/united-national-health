@@ -68,11 +68,18 @@ export async function createHospitalAdmin(
     ),
   );
 
+  const emailLogId = await sendTemporaryPasswordEmail({
+    to: user.email,
+    name,
+    temporaryPassword: tempPassword,
+  });
+
   await recordAdminActivity(
     actor,
     `Created hospital admin ${name}`,
     "Hospital Access",
     ActivityCategory.ACCESS,
+    emailLogId ? { emailLogId } : undefined,
   );
 
   return { user, temporaryPassword: tempPassword };
@@ -154,18 +161,19 @@ export async function resetHospitalAdminPassword(
     },
   });
 
+  const emailLogId = await sendTemporaryPasswordEmail({
+    to: user.email,
+    name: user.name,
+    temporaryPassword: tempPassword,
+  });
+
   await recordAdminActivity(
     actor,
     `Reset credentials for admin ${userId}`,
     "Hospital Access",
     ActivityCategory.SECURITY,
+    emailLogId ? { emailLogId } : undefined,
   );
-
-  await sendTemporaryPasswordEmail({
-    to: user.email,
-    name: user.name,
-    temporaryPassword: tempPassword,
-  });
 
   return { temporaryPassword: tempPassword };
 }

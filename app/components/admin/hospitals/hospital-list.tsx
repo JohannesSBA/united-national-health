@@ -30,7 +30,13 @@ type HospitalItem = {
   }[];
 };
 
-export function HospitalList({ hospitals }: { hospitals: HospitalItem[] }) {
+export function HospitalList({
+  hospitals,
+  existingContacts,
+}: {
+  hospitals: HospitalItem[];
+  existingContacts: { emails: string[]; phones: string[] };
+}) {
   const [search, setSearch] = useState("");
 
   const filtered = useMemo(() => {
@@ -90,7 +96,10 @@ export function HospitalList({ hospitals }: { hospitals: HospitalItem[] }) {
               hospitalId={hospital.id}
               status={hospital.status}
             />
-            <HospitalDetailsForm hospital={hospital} />
+            <HospitalDetailsForm
+              hospital={hospital}
+              existingContacts={existingContacts}
+            />
           </div>
           <div className="mt-6 grid gap-4 md:grid-cols-2">
             <div className="rounded-xl border border-border/60 p-4">

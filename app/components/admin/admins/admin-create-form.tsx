@@ -14,8 +14,10 @@ type HospitalOption = {
 
 export function AdminCreateForm({
   hospitals,
+  existingAdminEmails,
 }: {
   hospitals: HospitalOption[];
+  existingAdminEmails: string[];
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -41,10 +43,16 @@ export function AdminCreateForm({
       };
     });
   };
-
+  const normalizedEmail = formState.email.trim().toLowerCase();
+  const hasDuplicateEmail =
+    normalizedEmail.length > 0 && existingAdminEmails.includes(normalizedEmail);
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
+    if (hasDuplicateEmail) {
+      setError("Another administrator already uses that email.");
+      return;
+    }
     const confirmed = await confirmAction({
       title: "Create hospital admin",
       description: `Provision ${formState.name || formState.email} with elevated access?`,
@@ -97,6 +105,11 @@ export function AdminCreateForm({
               }
               required
             />
+            {hasDuplicateEmail ? (
+              <p className="mt-1 text-xs text-destructive">
+                This email already belongs to another administrator.
+              </p>
+            ) : null}
           </div>
         </div>
         <div>
@@ -125,7 +138,7 @@ export function AdminCreateForm({
             <span className="font-mono">{temporaryPassword}</span>
           </p>
         ) : null}
-        <Button type="submit" disabled={isPending}>
+        <Button type="submit" disabled={isPending || hasDuplicateEmail}>
           {isPending ? "Creating..." : "Create hospital admin"}
         </Button>
       </form>

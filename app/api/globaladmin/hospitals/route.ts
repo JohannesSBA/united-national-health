@@ -14,16 +14,22 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const session = await requireGlobalAdminFromRequest(request);
   const payload = await request.json();
-  const hospital = await createHospital(
-    {
-      name: payload.name,
-      region: payload.region,
-      contactEmail: payload.contactEmail,
-      contactPhone: payload.contactPhone,
-      description: payload.description,
-      code: payload.code,
-    },
-    session.user.id,
-  );
-  return NextResponse.json({ data: hospital }, { status: 201 });
+  try {
+    const hospital = await createHospital(
+      {
+        name: payload.name,
+        region: payload.region,
+        contactEmail: payload.contactEmail,
+        contactPhone: payload.contactPhone,
+        description: payload.description,
+        code: payload.code,
+      },
+      session.user.id,
+    );
+    return NextResponse.json({ data: hospital }, { status: 201 });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Failed to register hospital";
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
 }

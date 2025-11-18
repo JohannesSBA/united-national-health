@@ -5,6 +5,10 @@ import { Building2, Users } from "lucide-react";
 import { listHospitals } from "@/lib/services/global-admin/hospitals";
 import { HospitalCreateForm } from "@/app/components/admin/hospitals/hospital-create-form";
 import { HospitalList } from "@/app/components/admin/hospitals/hospital-list";
+import {
+  normalizeContactEmail,
+  normalizeContactPhone,
+} from "@/lib/contact-utils";
 
 export default async function HospitalsPage() {
   await requireGlobalAdmin();
@@ -22,6 +26,20 @@ export default async function HospitalsPage() {
       dueDate: action.dueDate.toISOString(),
     })),
   }));
+  const contactSets = hospitals.reduce(
+    (acc, hospital) => {
+      const email = normalizeContactEmail(hospital.contactEmail);
+      const phone = normalizeContactPhone(hospital.contactPhone);
+      if (email) acc.emails.add(email);
+      if (phone) acc.phones.add(phone);
+      return acc;
+    },
+    { emails: new Set<string>(), phones: new Set<string>() },
+  );
+  const existingContacts = {
+    emails: Array.from(contactSets.emails),
+    phones: Array.from(contactSets.phones),
+  };
 
   return (
     <AdminPageTemplate
@@ -51,11 +69,14 @@ export default async function HospitalsPage() {
           Capture governance contacts, then approve onboarding when ready.
         </p>
         <div className="mt-4">
-          <HospitalCreateForm />
+          <HospitalCreateForm existingContacts={existingContacts} />
         </div>
       </section>
       <section className="grid gap-4">
-        <HospitalList hospitals={normalizedHospitals} />
+        <HospitalList
+          hospitals={normalizedHospitals}
+          existingContacts={existingContacts}
+        />
       </section>
     </AdminPageTemplate>
   );

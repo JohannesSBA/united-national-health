@@ -28,13 +28,24 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const session = await requireGlobalAdminFromRequest(request);
   const payload = await request.json();
-  const { user, temporaryPassword } = await createHospitalAdmin(
-    {
-      email: payload.email,
-      name: payload.name,
-      hospitalIds: payload.hospitalIds ?? [],
-    },
-    session.user.id,
-  );
-  return NextResponse.json({ data: user, temporaryPassword }, { status: 201 });
+  try {
+    const { user, temporaryPassword } = await createHospitalAdmin(
+      {
+        email: payload.email,
+        name: payload.name,
+        hospitalIds: payload.hospitalIds ?? [],
+      },
+      session.user.id,
+    );
+    return NextResponse.json(
+      { data: user, temporaryPassword },
+      { status: 201 },
+    );
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Unable to create hospital admin";
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
 }

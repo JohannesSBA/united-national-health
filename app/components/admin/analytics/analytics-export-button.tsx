@@ -13,7 +13,8 @@ export function AnalyticsExportButton() {
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = "governance-report.csv";
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      anchor.download = `governance-report-${timestamp}.csv`;
       anchor.click();
       URL.revokeObjectURL(url);
     });

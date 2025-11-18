@@ -23,26 +23,32 @@ export async function PATCH(request: Request, context: Params) {
     );
   }
 
-  if (body.action === "status") {
-    const hospital = await changeHospitalStatus(
+  try {
+    if (body.action === "status") {
+      const hospital = await changeHospitalStatus(
+        hospitalId,
+        body.status as HospitalStatus,
+        session.user.id,
+        body.reason ?? "",
+      );
+      return NextResponse.json({ data: hospital });
+    }
+
+    const hospital = await updateHospitalDetails(
       hospitalId,
-      body.status as HospitalStatus,
+      {
+        region: body.region,
+        contactEmail: body.contactEmail,
+        contactPhone: body.contactPhone,
+        description: body.description,
+      },
       session.user.id,
     );
+
     return NextResponse.json({ data: hospital });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Unable to update hospital";
+    return NextResponse.json({ error: message }, { status: 400 });
   }
-
-  const hospital = await updateHospitalDetails(
-    hospitalId,
-    {
-      name: body.name,
-      region: body.region,
-      contactEmail: body.contactEmail,
-      contactPhone: body.contactPhone,
-      description: body.description,
-    },
-    session.user.id,
-  );
-
-  return NextResponse.json({ data: hospital });
 }

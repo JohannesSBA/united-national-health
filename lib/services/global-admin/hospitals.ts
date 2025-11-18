@@ -3,11 +3,15 @@ import {
   HospitalStatus,
   OnboardingPriority,
   OnboardingStatus,
-  Prisma,
 } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { generateHospitalCode } from "@/lib/utils";
 import { recordAdminActivity } from "./activity";
+import {
+  normalizeContactEmail,
+  normalizeContactPhone,
+} from "@/lib/contact-utils";
+import { sendHospitalStatusEmail } from "@/lib/email";
 
 export type CreateHospitalInput = {
   name: string;
@@ -18,19 +22,65 @@ export type CreateHospitalInput = {
   code?: string;
 };
 
+async function ensureUniqueContacts({
+  contactEmail,
+  contactPhone,
+  excludeId,
+}: {
+  contactEmail?: string | null;
+  contactPhone?: string | null;
+  excludeId?: string;
+}) {
+  if (contactEmail) {
+    const emailConflict = await db.hospital.findFirst({
+      where: {
+        contactEmail: {
+          equals: contactEmail,
+          mode: "insensitive",
+        },
+        NOT: excludeId ? { id: excludeId } : undefined,
+      },
+      select: { id: true },
+    });
+    if (emailConflict) {
+      throw new Error("Contact email is already assigned to another hospital.");
+    }
+  }
+  if (contactPhone) {
+    const phoneConflict = await db.hospital.findFirst({
+      where: {
+        contactPhone: contactPhone,
+        NOT: excludeId ? { id: excludeId } : undefined,
+      },
+      select: { id: true },
+    });
+    if (phoneConflict) {
+      throw new Error("Contact phone is already assigned to another hospital.");
+    }
+  }
+}
+
 export async function createHospital(
   input: CreateHospitalInput,
   actor: string,
 ) {
   const code = (input.code ?? generateHospitalCode(input.name)).toUpperCase();
+  const contactEmail = normalizeContactEmail(input.contactEmail);
+  const contactPhone = normalizeContactPhone(input.contactPhone);
+  const region = input.region?.trim() || null;
+  const description = input.description?.trim() || null;
+  await ensureUniqueContacts({
+    contactEmail: contactEmail || undefined,
+    contactPhone: contactPhone || undefined,
+  });
   const hospital = await db.hospital.create({
     data: {
       name: input.name,
       code,
-      region: input.region,
-      contactEmail: input.contactEmail,
-      contactPhone: input.contactPhone,
-      description: input.description,
+      region,
+      contactEmail: contactEmail || null,
+      contactPhone: contactPhone || null,
+      description,
       status: HospitalStatus.PENDING,
     },
   });
@@ -84,12 +134,29 @@ export async function createHospital(
 
 export async function updateHospitalDetails(
   hospitalId: string,
-  data: Prisma.HospitalUpdateInput,
+  data: {
+    region?: string;
+    contactEmail?: string;
+    contactPhone?: string;
+    description?: string;
+  },
   actor: string,
 ) {
+  const contactEmail = normalizeContactEmail(data.contactEmail);
+  const contactPhone = normalizeContactPhone(data.contactPhone);
+  await ensureUniqueContacts({
+    contactEmail: contactEmail || undefined,
+    contactPhone: contactPhone || undefined,
+    excludeId: hospitalId,
+  });
   const hospital = await db.hospital.update({
     where: { id: hospitalId },
-    data,
+    data: {
+      region: data.region?.trim() || null,
+      contactEmail: contactEmail || null,
+      contactPhone: contactPhone || null,
+      description: data.description?.trim() || null,
+    },
   });
 
   await recordAdminActivity(
@@ -106,7 +173,12 @@ export async function changeHospitalStatus(
   hospitalId: string,
   status: HospitalStatus,
   actor: string,
+  reason: string,
 ) {
+  const trimmedReason = reason.trim();
+  if (!trimmedReason) {
+    throw new Error("A reason is required to change status.");
+  }
   const hospital = await db.hospital.update({
     where: { id: hospitalId },
     data: {
@@ -114,11 +186,21 @@ export async function changeHospitalStatus(
     },
   });
 
+  const emailLogId =
+    hospital.contactEmail &&
+    (await sendHospitalStatusEmail({
+      to: hospital.contactEmail,
+      hospitalName: hospital.name,
+      status,
+      reason: trimmedReason,
+    }));
+
   await recordAdminActivity(
     actor,
-    `Set ${hospital.name} status to ${status}`,
+    `Set ${hospital.name} status to ${status} – ${trimmedReason}`,
     "Platform Governance",
     ActivityCategory.GOVERNANCE,
+    emailLogId ? { emailLogId } : undefined,
   );
 
   return hospital;

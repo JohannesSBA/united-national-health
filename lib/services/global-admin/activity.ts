@@ -6,6 +6,7 @@ export async function recordAdminActivity(
   action: string,
   scope: string,
   category: ActivityCategory = ActivityCategory.GOVERNANCE,
+  metadata?: Record<string, unknown>,
 ) {
   await db.adminActivity.create({
     data: {
@@ -13,6 +14,7 @@ export async function recordAdminActivity(
       action,
       scope,
       category,
+      metadata: metadata ?? undefined,
     },
   });
 }

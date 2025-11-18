@@ -14,7 +14,8 @@ export function ActivityExportButton() {
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = "administrative-activity.csv";
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      anchor.download = `administrative-activity-${timestamp}.csv`;
       anchor.click();
       URL.revokeObjectURL(url);
     });

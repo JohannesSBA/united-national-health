@@ -59,6 +59,14 @@ export default async function AdministratorsPage() {
     status: user.status,
     hospitalMemberships: user.hospitalMemberships,
   }));
+  const adminEmails = Array.from(
+    new Set(
+      [
+        ...globalAdmins.map(({ user }) => user.email.toLowerCase()),
+        ...hospitalAdminRecords.map((admin) => admin.email.toLowerCase()),
+      ].filter(Boolean),
+    ),
+  );
 
   return (
     <AdminPageTemplate
@@ -74,7 +82,10 @@ export default async function AdministratorsPage() {
           Provision a hospital-level administrator with scoped facility access.
         </p>
         <div className="mt-4">
-          <AdminCreateForm hospitals={hospitals} />
+          <AdminCreateForm
+            hospitals={hospitals}
+            existingAdminEmails={adminEmails}
+          />
         </div>
       </section>
 

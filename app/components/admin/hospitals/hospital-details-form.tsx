@@ -5,6 +5,10 @@ import { useRouter } from "next/navigation";
 import { Input } from "@/app/components/ui/input";
 import { Button } from "@/app/components/ui/button";
 import { useActionConfirmation } from "@/app/components/admin/action-confirmation";
+import {
+  normalizeContactEmail,
+  normalizeContactPhone,
+} from "@/lib/contact-utils";
 
 type HospitalDetails = {
   id: string;
@@ -16,8 +20,10 @@ type HospitalDetails = {
 
 export function HospitalDetailsForm({
   hospital,
+  existingContacts,
 }: {
   hospital: HospitalDetails;
+  existingContacts: { emails: string[]; phones: string[] };
 }) {
   const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
@@ -28,10 +34,33 @@ export function HospitalDetailsForm({
     description: hospital.description ?? "",
     region: hospital.region ?? "",
   });
+  const [error, setError] = useState<string | null>(null);
   const { confirmAction, ConfirmationDialog } = useActionConfirmation();
+
+  const originalEmail = normalizeContactEmail(hospital.contactEmail);
+  const originalPhone = normalizeContactPhone(hospital.contactPhone);
+  const normalizedEmail = normalizeContactEmail(state.contactEmail);
+  const normalizedPhone = normalizeContactPhone(state.contactPhone);
+  const emailConflict =
+    !!normalizedEmail &&
+    normalizedEmail !== originalEmail &&
+    existingContacts.emails.includes(normalizedEmail);
+  const phoneConflict =
+    !!normalizedPhone &&
+    normalizedPhone !== originalPhone &&
+    existingContacts.phones.includes(normalizedPhone);
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setError(null);
+    if (emailConflict || phoneConflict) {
+      setError(
+        emailConflict
+          ? "Another hospital already lists that email."
+          : "Another hospital already lists that phone number.",
+      );
+      return;
+    }
     const confirmed = await confirmAction({
       title: "Update hospital profile",
       description:
@@ -39,11 +68,19 @@ export function HospitalDetailsForm({
     });
     if (!confirmed) return;
     startTransition(async () => {
-      await fetch(`/api/globaladmin/hospitals/${hospital.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...state }),
-      });
+      const response = await fetch(
+        `/api/globaladmin/hospitals/${hospital.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...state }),
+        },
+      );
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        setError(data.error ?? "Unable to update hospital.");
+        return;
+      }
       setIsEditing(false);
       router.refresh();
     });
@@ -87,6 +124,11 @@ export function HospitalDetailsForm({
             setState((prev) => ({ ...prev, contactEmail: event.target.value }))
           }
         />
+        {emailConflict ? (
+          <p className="text-xs text-destructive">
+            This email is already assigned to another hospital.
+          </p>
+        ) : null}
         <Input
           placeholder="Contact phone"
           value={state.contactPhone}
@@ -94,6 +136,11 @@ export function HospitalDetailsForm({
             setState((prev) => ({ ...prev, contactPhone: event.target.value }))
           }
         />
+        {phoneConflict ? (
+          <p className="text-xs text-destructive">
+            This phone number is already assigned to another hospital.
+          </p>
+        ) : null}
         <textarea
           className="min-h-[60px] w-full rounded-md border border-border bg-transparent px-2 py-1 text-sm"
           placeholder="Description"
@@ -102,8 +149,13 @@ export function HospitalDetailsForm({
             setState((prev) => ({ ...prev, description: event.target.value }))
           }
         />
+        {error ? <p className="text-sm text-destructive">{error}</p> : null}
         <div className="flex gap-2">
-          <Button type="submit" size="sm" disabled={isPending}>
+          <Button
+            type="submit"
+            size="sm"
+            disabled={isPending || emailConflict || phoneConflict}
+          >
             Save
           </Button>
           <Button
@@ -117,6 +169,7 @@ export function HospitalDetailsForm({
                 description: hospital.description ?? "",
                 region: hospital.region ?? "",
               });
+              setError(null);
               setIsEditing(false);
             }}
           >

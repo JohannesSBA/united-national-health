@@ -65,6 +65,9 @@ model Hospital {
   onboardingActions OnboardingAction[]
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
+
+  @@unique([contactEmail])
+  @@unique([contactPhone])
 }
 
 model HospitalUser {
@@ -207,6 +210,7 @@ model AdminActivity {
   action    String
   scope     String
   category  ActivityCategory @default(GOVERNANCE)
+  metadata  Json?
   createdAt DateTime @default(now())
 }
 
@@ -268,4 +272,13 @@ model RolePolicy {
   permissions Json
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+model EmailLog {
+  id             String   @id @default(uuid())
+  to             String
+  subject        String
+  bodyCiphertext String   @map("bodyHtml")
+  metadata       Json?
+  createdAt      DateTime @default(now())
 }
