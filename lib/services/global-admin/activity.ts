@@ -1,4 +1,4 @@
-import { ActivityCategory } from "@/generated/prisma/client";
+import { ActivityCategory, Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 
 export async function recordAdminActivity(
@@ -6,7 +6,7 @@ export async function recordAdminActivity(
   action: string,
   scope: string,
   category: ActivityCategory = ActivityCategory.GOVERNANCE,
-  metadata?: Record<string, unknown>,
+  metadata?: Prisma.InputJsonValue | null,
 ) {
   await db.adminActivity.create({
     data: {
