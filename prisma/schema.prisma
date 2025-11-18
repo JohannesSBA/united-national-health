@@ -20,6 +20,7 @@ model User {
   name                String
   emailVerified       Boolean        @default(false)
   image               String?
+  status              UserStatus     @default(ACTIVE)
   roles               UserRole[]
   hospitalMemberships HospitalUser[]
   accounts            Account[]
@@ -27,7 +28,6 @@ model User {
   createdAt           DateTime       @default(now())
   updatedAt           DateTime       @updatedAt
 
-  @@map("user")
 }
 
 model Role {
@@ -55,9 +55,19 @@ model UserRole {
 model Hospital {
   id        String         @id @default(uuid())
   name      String         @unique
+  code      String?        @unique
+  region    String?
+  contactEmail String?
+  contactPhone String?
+  description String?
+  status    HospitalStatus @default(PENDING)
   members   HospitalUser[]
+  onboardingActions OnboardingAction[]
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
+
+  @@unique([contactEmail])
+  @@unique([contactPhone])
 }
 
 model HospitalUser {
@@ -92,7 +102,6 @@ model Account {
 
   @@unique([providerId, accountId])
   @@index([userId])
-  @@map("account")
 }
 
 model Session {
@@ -108,7 +117,6 @@ model Session {
 
   @@index([userId])
   @@index([expiresAt])
-  @@map("session")
 }
 
 model Verification {
@@ -122,11 +130,155 @@ model Verification {
   @@unique([identifier, value])
   @@index([identifier])
   @@index([expiresAt])
-  @@map("verification")
 }
 
 model RateLimit {
   key         String @id
   count       Int
   lastRequest Float
+}
+
+enum HospitalStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  DECOMMISSIONED
+}
+
+enum OnboardingPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum OnboardingStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  REJECTED
+}
+
+enum SystemStatusState {
+  OPERATIONAL
+  DEGRADED
+  MAINTENANCE
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DISABLED
+}
+
+enum IntegrationStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum ActivityCategory {
+  GOVERNANCE
+  SECURITY
+  ACCESS
+  SYSTEM
+}
+
+enum CrossAccessPolicyStatus {
+  DRAFT
+  ACTIVE
+  REVOKED
+}
+
+model OnboardingAction {
+  id        String            @id @default(uuid())
+  hospitalId String
+  action    String
+  owner     String
+  dueDate   DateTime
+  priority  OnboardingPriority
+  status    OnboardingStatus   @default(PENDING)
+  hospital  Hospital           @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  @@index([hospitalId])
+  @@index([status])
+}
+
+model AdminActivity {
+  id        String   @id @default(uuid())
+  actor     String
+  action    String
+  scope     String
+  category  ActivityCategory @default(GOVERNANCE)
+  metadata  Json?
+  createdAt DateTime @default(now())
+}
+
+model SystemStatus {
+  id              String             @id @default(uuid())
+  overallStatus   SystemStatusState
+  uptimePercent   Float
+  lastIncidentAt  DateTime?
+  deploymentVersion String
+  createdAt       DateTime           @default(now())
+}
+
+model SystemSetting {
+  key       String   @id
+  value     Json
+  updatedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model IntegrationKey {
+  id            String            @id @default(uuid())
+  name          String
+  description   String?
+  tokenHash     String
+  lastFour      String?
+  status        IntegrationStatus @default(ACTIVE)
+  lastRotatedAt DateTime?
+  createdBy     String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+}
+
+model AccessPolicy {
+  id            String                  @id @default(uuid())
+  name          String
+  description   String?
+  hospitalScope String[]
+  status        CrossAccessPolicyStatus @default(DRAFT)
+  approvedBy    String?
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+}
+
+model SecurityAlert {
+  id             String   @id @default(uuid())
+  type           String
+  severity       String
+  description    String
+  resolved       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  resolvedAt     DateTime?
+  acknowledgedBy String?
+}
+
+model RolePolicy {
+  id          String   @id @default(uuid())
+  roleName    String   @unique
+  permissions Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model EmailLog {
+  id             String   @id @default(uuid())
+  to             String
+  subject        String
+  bodyCiphertext String   @map("bodyHtml")
+  metadata       Json?
+  createdAt      DateTime @default(now())
 }

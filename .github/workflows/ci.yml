@@ -14,11 +14,27 @@ permissions:
 env:
   NODE_VERSION: 20.x
   DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+  AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
 
 jobs:
   quality:
-    name: Lint, Build, Test, & Docker
+    name: Lint, Build, Test, and Docker
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: unh_app
+          POSTGRES_PASSWORD: unh_local_password
+          POSTGRES_DB: united_national_health
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd="pg_isready -U unh_app -d united_national_health"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
 
     steps:
       - name: Checkout repository
@@ -33,6 +49,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Run database migrations
+        run: npx prisma migrate deploy
+
+      - name: Build database Docker image
+        run: docker build -f Dockerfile.db -t unh-db .
+
       - name: Generate Prisma Client
         run: npx prisma generate
 
@@ -44,6 +66,3 @@ jobs:
 
       - name: Run unit tests (pass if no tests)
         run: npm run test:ci
-
-      - name: Build database Docker image
-        run: docker build -f Dockerfile.db -t unh-db .
