@@ -1,0 +1,2 @@
+ALTER TABLE "AdminActivity"
+ADD COLUMN IF NOT EXISTS "metadata" JSONB;

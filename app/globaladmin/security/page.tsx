@@ -13,6 +13,7 @@ export default async function SecurityPage() {
 
   const [
     activities,
+    activityCount,
     highPriorityActions,
     systemSettings,
     policies,
@@ -25,6 +26,7 @@ export default async function SecurityPage() {
       },
       take: 12,
     }),
+    db.adminActivity.count(),
     db.onboardingAction.findMany({
       where: {
         priority: "HIGH",
@@ -163,7 +165,11 @@ export default async function SecurityPage() {
           action: activity.action,
           scope: activity.scope,
           timestamp: activity.createdAt.toISOString(),
+          category: activity.category,
+          metadata: activity.metadata as Record<string, unknown> | null,
         }))}
+        totalCount={activityCount}
+        pageSize={12}
       />
     </AdminPageTemplate>
   );

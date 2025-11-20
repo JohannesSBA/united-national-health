@@ -5,6 +5,7 @@ import { ActivityCategory, UserStatus } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { sendTemporaryPasswordEmail } from "@/lib/email";
 import { recordAdminActivity } from "./activity";
+import { AuditContext } from "@/lib/audit-context";
 
 async function getRoleId(name: string) {
   const role = await db.role.findUnique({ where: { name } });
@@ -25,6 +26,7 @@ export async function createHospitalAdmin(
     hospitalIds,
   }: { email: string; name: string; hospitalIds: string[] },
   actor: string,
+  auditContext?: AuditContext,
 ) {
   const existingUser = await db.user.findUnique({ where: { email } });
   if (existingUser) {
@@ -80,6 +82,7 @@ export async function createHospitalAdmin(
     "Hospital Access",
     ActivityCategory.ACCESS,
     emailLogId ? { emailLogId } : undefined,
+    auditContext,
   );
 
   return { user, temporaryPassword: tempPassword };
@@ -89,6 +92,7 @@ export async function reassignHospitalAdmin(
   userId: string,
   hospitalIds: string[],
   actor: string,
+  auditContext?: AuditContext,
 ) {
   if (!userId) {
     throw new Error("User ID is required");
@@ -111,6 +115,8 @@ export async function reassignHospitalAdmin(
     `Reassigned hospital admin ${userId} to ${hospitalIds.length} hospital(s)`,
     "Hospital Access",
     ActivityCategory.ACCESS,
+    undefined,
+    auditContext,
   );
 }
 
@@ -118,6 +124,7 @@ export async function updateHospitalAdminStatus(
   userId: string,
   status: UserStatus,
   actor: string,
+  auditContext?: AuditContext,
 ) {
   await db.user.update({
     where: { id: userId },
@@ -129,12 +136,15 @@ export async function updateHospitalAdminStatus(
     `${status === UserStatus.SUSPENDED ? "Suspended" : "Reactivated"} hospital admin ${userId}`,
     "Hospital Access",
     ActivityCategory.ACCESS,
+    undefined,
+    auditContext,
   );
 }
 
 export async function resetHospitalAdminPassword(
   userId: string,
   actor: string,
+  auditContext?: AuditContext,
 ) {
   const tempPassword = generateTempPassword();
   const passwordHash = await hashPassword(tempPassword);
@@ -173,6 +183,7 @@ export async function resetHospitalAdminPassword(
     "Hospital Access",
     ActivityCategory.SECURITY,
     emailLogId ? { emailLogId } : undefined,
+    auditContext,
   );
 
   return { temporaryPassword: tempPassword };

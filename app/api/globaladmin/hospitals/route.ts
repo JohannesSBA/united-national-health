@@ -4,6 +4,7 @@ import {
   createHospital,
   listHospitals,
 } from "@/lib/services/global-admin/hospitals";
+import { buildAuditContext } from "@/lib/audit-context";
 
 export async function GET(request: Request) {
   await requireGlobalAdminFromRequest(request);
@@ -14,6 +15,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const session = await requireGlobalAdminFromRequest(request);
   const payload = await request.json();
+  const auditContext = buildAuditContext(request.headers);
   try {
     const hospital = await createHospital(
       {
@@ -25,6 +27,7 @@ export async function POST(request: Request) {
         code: payload.code,
       },
       session.user.id,
+      auditContext,
     );
     return NextResponse.json({ data: hospital }, { status: 201 });
   } catch (error) {

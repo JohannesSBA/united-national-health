@@ -7,6 +7,7 @@ import {
 } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { recordAdminActivity } from "./activity";
+import { AuditContext } from "@/lib/audit-context";
 
 export async function upsertSystemSetting(
   key: string,
@@ -24,6 +25,7 @@ export async function toggleMaintenanceMode(
   enabled: boolean,
   reason: string | null,
   actor: string,
+  auditContext?: AuditContext,
 ) {
   await upsertSystemSetting("maintenance_mode", { enabled, reason }, actor);
 
@@ -32,6 +34,8 @@ export async function toggleMaintenanceMode(
     `${enabled ? "Enabled" : "Disabled"} maintenance mode`,
     "System Operations",
     ActivityCategory.SYSTEM,
+    undefined,
+    auditContext,
   );
 }
 
@@ -39,6 +43,7 @@ export async function configureMfaPolicy(
   required: boolean,
   enforcedFor: string[],
   actor: string,
+  auditContext?: AuditContext,
 ) {
   await upsertSystemSetting("mfa_policy", { required, enforcedFor }, actor);
 
@@ -47,6 +52,8 @@ export async function configureMfaPolicy(
     `${required ? "Required" : "Relaxed"} MFA policy`,
     "Security & Compliance",
     ActivityCategory.SECURITY,
+    undefined,
+    auditContext,
   );
 }
 
@@ -54,6 +61,7 @@ export async function updateDataRetention(
   retentionDays: number,
   legalHold: boolean,
   actor: string,
+  auditContext?: AuditContext,
 ) {
   await upsertSystemSetting(
     "data_retention",
@@ -66,6 +74,8 @@ export async function updateDataRetention(
     `Updated data retention to ${retentionDays} days`,
     "Security & Compliance",
     ActivityCategory.SECURITY,
+    undefined,
+    auditContext,
   );
 }
 
@@ -80,6 +90,7 @@ function hashToken(token: string) {
 export async function createIntegrationKey(
   { name, description }: { name: string; description?: string },
   actor: string,
+  auditContext?: AuditContext,
 ) {
   const token = generateIntegrationToken();
   const tokenHash = hashToken(token);
@@ -101,12 +112,18 @@ export async function createIntegrationKey(
     `Created integration key ${name}`,
     "Integrations",
     ActivityCategory.SYSTEM,
+    undefined,
+    auditContext,
   );
 
   return { integration, token };
 }
 
-export async function rotateIntegrationKey(id: string, actor: string) {
+export async function rotateIntegrationKey(
+  id: string,
+  actor: string,
+  auditContext?: AuditContext,
+) {
   const token = generateIntegrationToken();
   const tokenHash = hashToken(token);
 
@@ -124,6 +141,8 @@ export async function rotateIntegrationKey(id: string, actor: string) {
     `Rotated integration key ${integration.name}`,
     "Integrations",
     ActivityCategory.SYSTEM,
+    undefined,
+    auditContext,
   );
 
   return { integration, token };
@@ -133,6 +152,7 @@ export async function setIntegrationStatus(
   id: string,
   status: IntegrationStatus,
   actor: string,
+  auditContext?: AuditContext,
 ) {
   const integration = await db.integrationKey.update({
     where: { id },
@@ -144,6 +164,8 @@ export async function setIntegrationStatus(
     `${status === IntegrationStatus.ACTIVE ? "Re-enabled" : "Disabled"} integration ${integration.name}`,
     "Integrations",
     ActivityCategory.SECURITY,
+    undefined,
+    auditContext,
   );
 
   return integration;
@@ -156,6 +178,7 @@ export async function createAccessPolicy(
     hospitalScope,
   }: { name: string; description?: string; hospitalScope: string[] },
   actor: string,
+  auditContext?: AuditContext,
 ) {
   const policy = await db.accessPolicy.create({
     data: {
@@ -171,12 +194,18 @@ export async function createAccessPolicy(
     `Drafted access policy ${name}`,
     "Security & Compliance",
     ActivityCategory.SECURITY,
+    undefined,
+    auditContext,
   );
 
   return policy;
 }
 
-export async function approveAccessPolicy(id: string, actor: string) {
+export async function approveAccessPolicy(
+  id: string,
+  actor: string,
+  auditContext?: AuditContext,
+) {
   const policy = await db.accessPolicy.update({
     where: { id },
     data: {
@@ -190,12 +219,18 @@ export async function approveAccessPolicy(id: string, actor: string) {
     `Approved cross-hospital policy ${policy.name}`,
     "Security & Compliance",
     ActivityCategory.SECURITY,
+    undefined,
+    auditContext,
   );
 
   return policy;
 }
 
-export async function revokeAccessPolicy(id: string, actor: string) {
+export async function revokeAccessPolicy(
+  id: string,
+  actor: string,
+  auditContext?: AuditContext,
+) {
   const policy = await db.accessPolicy.update({
     where: { id },
     data: {
@@ -209,6 +244,8 @@ export async function revokeAccessPolicy(id: string, actor: string) {
     `Revoked cross-hospital policy ${policy.name}`,
     "Security & Compliance",
     ActivityCategory.SECURITY,
+    undefined,
+    auditContext,
   );
 
   return policy;

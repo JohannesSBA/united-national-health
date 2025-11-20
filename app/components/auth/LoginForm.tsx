@@ -25,6 +25,7 @@ export function LoginForm() {
     try {
       await authClient.signIn.email({ email, password });
       const user = await axios.get("/api/user/get").then((res) => res.data);
+      await axios.post("/api/session/enforce").catch(() => undefined);
       const roles = user.roles.map(
         (role: { role: { name: string } }) => role.role.name,
       );
@@ -34,11 +35,12 @@ export function LoginForm() {
         router.push(`/dashboard`);
       }
     } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Unable to sign in. Double-check your credentials and try again.";
-      setError(message);
+      const rawMessage =
+        err instanceof Error ? err.message : "Unable to sign in right now.";
+      const normalizedMessage = /401|unauthorized/i.test(rawMessage)
+        ? "Incorrect email or password. Please try again."
+        : rawMessage;
+      setError(normalizedMessage);
     } finally {
       setIsLoading(false);
     }

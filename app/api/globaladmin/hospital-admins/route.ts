@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireGlobalAdminFromRequest } from "@/lib/require-global-admin";
 import { createHospitalAdmin } from "@/lib/services/global-admin/hospital-admins";
+import { buildAuditContext } from "@/lib/audit-context";
 
 export async function GET(request: Request) {
   await requireGlobalAdminFromRequest(request);
@@ -28,6 +29,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const session = await requireGlobalAdminFromRequest(request);
   const payload = await request.json();
+  const auditContext = buildAuditContext(request.headers);
   try {
     const { user, temporaryPassword } = await createHospitalAdmin(
       {
@@ -36,6 +38,7 @@ export async function POST(request: Request) {
         hospitalIds: payload.hospitalIds ?? [],
       },
       session.user.id,
+      auditContext,
     );
     return NextResponse.json(
       { data: user, temporaryPassword },

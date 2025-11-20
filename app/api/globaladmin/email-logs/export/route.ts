@@ -8,6 +8,7 @@ import {
 } from "@/lib/email-encryption";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { recordAdminActivity } from "@/lib/services/global-admin/activity";
+import { buildAuditContext } from "@/lib/audit-context";
 
 const DECRYPTION_ERROR_HTML =
   '<p style="color:#dc2626;">Unable to decrypt email body. Verify EMAIL_LOG_SECRET.</p>';
@@ -169,12 +170,15 @@ export async function GET(request: Request) {
 
   const html = renderLogHtml(decryptedLogs, filterMeta);
 
+  const auditContext = buildAuditContext(request.headers);
+
   await recordAdminActivity(
     session.user.id,
     "Exported email logs",
     "Security & Compliance",
     ActivityCategory.SECURITY,
     { filters: filterMeta },
+    auditContext,
   );
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");

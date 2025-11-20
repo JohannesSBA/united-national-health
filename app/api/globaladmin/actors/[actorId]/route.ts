@@ -5,6 +5,7 @@ import { requireGlobalAdminFromRequest } from "@/lib/require-global-admin";
 import { db } from "@/lib/db";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { recordAdminActivity } from "@/lib/services/global-admin/activity";
+import { buildAuditContext } from "@/lib/audit-context";
 
 type Params = {
   params: Promise<{ actorId: string }>;
@@ -12,6 +13,7 @@ type Params = {
 
 export async function GET(request: Request, context: Params) {
   const session = await requireGlobalAdminFromRequest(request);
+  const auditContext = buildAuditContext(request.headers);
   try {
     await enforceRateLimit({
       key: `${session.user.id}:actor-lookup`,
@@ -51,6 +53,7 @@ export async function GET(request: Request, context: Params) {
     "Security & Compliance",
     ActivityCategory.SECURITY,
     { lookupActorId: actorId },
+    auditContext,
   );
 
   return NextResponse.json({

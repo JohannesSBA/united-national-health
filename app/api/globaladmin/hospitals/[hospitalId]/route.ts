@@ -5,6 +5,7 @@ import {
   changeHospitalStatus,
   updateHospitalDetails,
 } from "@/lib/services/global-admin/hospitals";
+import { buildAuditContext } from "@/lib/audit-context";
 
 type Params = {
   params: Promise<{
@@ -15,6 +16,7 @@ type Params = {
 export async function PATCH(request: Request, context: Params) {
   const session = await requireGlobalAdminFromRequest(request);
   const body = await request.json();
+  const auditContext = buildAuditContext(request.headers);
   const { hospitalId } = await context.params;
   if (!hospitalId) {
     return NextResponse.json(
@@ -30,6 +32,7 @@ export async function PATCH(request: Request, context: Params) {
         body.status as HospitalStatus,
         session.user.id,
         body.reason ?? "",
+        auditContext,
       );
       return NextResponse.json({ data: hospital });
     }
@@ -43,6 +46,7 @@ export async function PATCH(request: Request, context: Params) {
         description: body.description,
       },
       session.user.id,
+      auditContext,
     );
 
     return NextResponse.json({ data: hospital });
