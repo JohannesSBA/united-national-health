@@ -4,7 +4,6 @@ import { HospitalAdminDashboard } from "@/app/components/hospital-admin/hospital
 import { HospitalAdminVerification } from "@/app/components/hospital-admin/hospital-admin-verification";
 import { db } from "@/lib/db";
 import { requireHospitalAdmin } from "@/lib/require-hospital-admin";
-import { ensureHospitalAdminCsrfToken } from "@/lib/hospital-admin-csrf";
 
 export default async function HospitalAdminPage() {
   const session = await requireHospitalAdmin();
@@ -23,14 +22,12 @@ export default async function HospitalAdminPage() {
   }
 
   if (!user.emailVerified) {
-    const csrfToken = ensureHospitalAdminCsrfToken();
     return (
       <HospitalAdminVerification
         user={{
           name: user.name,
           email: user.email,
         }}
-        csrfToken={csrfToken}
       />
     );
   }

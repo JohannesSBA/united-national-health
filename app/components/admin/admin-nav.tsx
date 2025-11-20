@@ -1,5 +1,8 @@
 import Link from "next/link";
+import { LogOut } from "lucide-react";
+
 import { cn } from "@/lib/utils";
+import LogoutButton from "@/app/components/auth/LogoutButton";
 
 const links = [
   { label: "Dashboard", href: "/globaladmin", key: "dashboard" },
@@ -47,6 +50,10 @@ export function AdminNav({ activeKey = "dashboard" }: AdminNavProps) {
           </Link>
         );
       })}
+      <LogoutButton className="ml-auto flex items-center gap-2 rounded-xl border border-border/60 px-4 py-2 font-medium text-muted-foreground transition hover:border-destructive/50 hover:text-destructive">
+        <LogOut className="size-4" />
+        Sign out
+      </LogoutButton>
     </nav>
   );
 }

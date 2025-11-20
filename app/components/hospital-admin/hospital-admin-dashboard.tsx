@@ -202,6 +202,64 @@ export function HospitalAdminDashboard({
             </CardContent>
           </Card>
         </section>
+
+        <section className="rounded-3xl border border-border/70 bg-card/95 p-6 shadow-sm">
+          <div className="mb-6 flex flex-col gap-2">
+            <p className="text-sm font-semibold uppercase tracking-widest text-primary">
+              Quick navigation
+            </p>
+            <h2 className="text-xl font-semibold tracking-tight">
+              Jump into hospital operations
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              These areas stay constrained to your assigned hospitals and never
+              expose PHI.
+            </p>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {[
+              {
+                href: "/hospitaladmin/staff",
+                title: "Staff",
+                description: "Create accounts, review access, view rosters.",
+              },
+              {
+                href: "/hospitaladmin/departments",
+                title: "Departments",
+                description: "Assign heads and manage department coverage.",
+              },
+              {
+                href: "/hospitaladmin/rooms",
+                title: "Facilities",
+                description: "Track rooms, equipment, and capacity.",
+              },
+              {
+                href: "/hospitaladmin/schedule",
+                title: "Schedule",
+                description: "Publish duty rosters without overlap.",
+              },
+              {
+                href: "/hospitaladmin/analytics",
+                title: "Analytics",
+                description: "Export operational metrics for your hospital.",
+              },
+            ].map((item) => (
+              <a
+                key={item.href}
+                href={item.href}
+                className="group flex flex-col gap-2 rounded-2xl border border-border/60 bg-background/80 p-4 transition hover:border-primary hover:bg-primary/5"
+              >
+                <span className="text-base font-semibold">{item.title}</span>
+                <span className="text-sm text-muted-foreground">
+                  {item.description}
+                </span>
+                <span className="text-xs font-semibold uppercase tracking-widest text-primary group-hover:translate-x-1 transition">
+                  Open →
+                </span>
+              </a>
+            ))}
+          </div>
+        </section>
       </div>
     </div>
   );

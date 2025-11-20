@@ -433,3 +433,42 @@ Use unique values per environment. `BETTER_AUTH_SECRET`/`AUTH_SECRET` must be st
 > **Database migrations:** recent features (email logging, duplicate-prevention, etc.) require the new migrations in `prisma/migrations/20251118120000_add_email_log`. Always run `npx prisma migrate deploy` (or `prisma migrate dev` locally) after pulling to ensure the `EmailLog` table and hospital contact uniqueness constraints exist before resetting passwords or sending other notifications.
 
 > **Local admin credentials:** By default the seed script creates `admin@unh.local` / `ChangeMeNow!123`. Override `SEED_ADMIN_*` before re-running the seed command to change or rotate these credentials, and never reuse the defaults outside local development.
+
+## Hospital Admin Operational Surface
+
+The `/hospitaladmin` module is a scoped, PHI-free operations suite for facility administrators. It brings full staff lifecycle tooling, department/resource controls, analytics, inventory management, and aggressive auditing—every mutation stays scoped to the admin’s hospital and mirrored to governance logs.
+
+### Authentication & Session Flow
+- `lib/require-hospital-admin.ts` validates the Better Auth session and ensures the signed-in user holds the `HospitalAdmin` role before any server component or API handler executes.
+- First-time admins must pass through `HospitalAdminVerification`, which fetches CSRF tokens from `/api/hospital-admin/csrf`, refreshes them every four minutes, enforces the password policy, rate-limits submissions, and exposes a logout button for immediate sign-out.
+- The shared `LogoutButton` component now adorns both the verification view and the authenticated shell, guaranteeing logout coverage across the hospital admin UI.
+
+### Staff Lifecycle & Auditing
+- Staff creation is limited to the operational roles Doctor, Nurse, Lab Technician, Billing, Receptionist, Care Coordinator, Pharmacist, and Administrator. The Prisma enum, Zod schema, and dropdown share this exact set.
+- Doctor-specific metadata (department, specialization, license number, level) is conditionally rendered—and required—only when the Doctor role is selected. Other roles skip those fields entirely.
+- Doctors cannot be created unless an active department exists inside the admin’s hospital. Departments enforce a configurable capacity ceiling (`DEPARTMENT_CAPACITY_LIMIT`, default 50 active assignments) before allowing new staff assignments, and doctor onboarding auto-creates the corresponding staff assignment row.
+- Staff provisioning spins up the user, credential, hospital membership, staff profile, and user-role mapping. Temporary passwords are generated server-side, hashed, emailed via `sendTemporaryPasswordEmail`, and logged (encrypted) in `EmailLog`.
+- Staff detail pages expose Activate, Mark on Leave, Disable, and Reset Credentials buttons. Credential resets regenerate a password, email the staffer, set `emailVerified=false`, log hospital/global audit entries, raise security alerts, and are rate-limited (three per hour per staff member).
+- Status changes (activate/disable) email the staff member (`sendStaffStatusEmail`), capture `AuditLog` entries, mirror to `AdminActivity`, and raise severity-tuned alerts to keep the security team informed.
+
+### Departments, Rooms, Scheduling, Inventory
+- Department assignments require an active department belonging to the same hospital and respecting the capacity limit. Soft-deleting departments nulls head references and logs the event.
+- Rooms and equipment use scoped Prisma queries with audit logging; equipment entries must reference existing rooms or remain unassigned.
+- Scheduling posts through server actions, includes a per-admin rate limit (20/minute), and logs every change. `/api/hospital-admin/schedule/[scheduleId]` supports GET/PATCH/DELETE with promise-based params to satisfy Next.js 16.
+- `/hospitaladmin/analytics` now renders inventory rows with inline minus/plus buttons. Each posts to `adjustInventoryQuantityAction`, clamping values above zero while intentionally skipping audit logs per the operational requirement.
+
+### Analytics & Reporting
+- `getHospitalAnalyticsSnapshot` aggregates staff counts for every approved role (including billing/receptionist/care coordinator), department utilization, room usage, shift coverage, and patient flow. The analytics page renders fixed cards for each role so counts are never hidden.
+- `/api/hospital-admin/analytics/export` streams CSV or PDF (via `pdf-lib`) that summarize staff distribution, room metrics, upcoming surgeries, and inventory alerts.
+
+### Rate Limiting, Alerts, Logging
+- Sensitive actions call `enforceRateLimit`: credential resets (3/hour/staff) and schedule creation (20/minute/admin) return user-friendly errors when exceeded, and reset abuse raises a `STAFF_RESET_RATE_LIMIT` alert.
+- `raiseSecurityAlert` records status flips, credential resets, and rate-limit violations so the global security team can respond immediately.
+- `logHospitalAudit` stores `Prisma.InputJsonValue` payloads, capturing hospital/actor/resource metadata plus optional JSON changes. `recordAdminActivity` mirrors high-sensitivity events, ensuring governance teams can trace every hospital-level action.
+
+### API Compliance & Utilities
+- All `/api/hospital-admin/*` handlers resolve `context.params` and `searchParams` as Promises per Next.js 16’s validator.
+- `/api/hospital-admin/csrf` is the only endpoint allowed to mutate CSRF cookies, complying with Next.js 13+ cookie rules.
+- Notifications (credential setup, status changes) run through `sendSystemEmail`, which encrypts payloads before logging and raises alerts on SMTP failures.
+
+Collectively these features give hospital administrators a secure, audited operational toolkit while keeping data scoped to their facility and invisible to unauthorized actors.

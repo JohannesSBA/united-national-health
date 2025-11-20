@@ -17,7 +17,8 @@ export async function recordAdminActivity(
       action,
       scope,
       category,
-      metadata: mergedMetadata ?? undefined,
+      metadata:
+        (mergedMetadata as Prisma.InputJsonValue | undefined) ?? undefined,
     },
   });
 }

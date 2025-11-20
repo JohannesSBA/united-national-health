@@ -3,8 +3,8 @@ import { randomBytes, timingSafeEqual } from "crypto";
 
 const COOKIE_NAME = "hospitaladmin_csrf";
 
-export function ensureHospitalAdminCsrfToken() {
-  const store = cookies();
+export async function ensureHospitalAdminCsrfToken() {
+  const store = await cookies();
   let token = store.get(COOKIE_NAME)?.value;
   if (!token) {
     token = randomBytes(32).toString("hex");
@@ -21,8 +21,10 @@ export function ensureHospitalAdminCsrfToken() {
   return token;
 }
 
-export function validateHospitalAdminCsrfToken(headerToken?: string | null) {
-  const store = cookies();
+export async function validateHospitalAdminCsrfToken(
+  headerToken?: string | null,
+) {
+  const store = await cookies();
   const cookieToken = store.get(COOKIE_NAME)?.value;
   if (!headerToken || !cookieToken) {
     throw new Error("Missing CSRF token");

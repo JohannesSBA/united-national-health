@@ -20,7 +20,7 @@ export async function POST(request: Request) {
   const session = await requireHospitalAdminFromRequest(request);
 
   try {
-    validateHospitalAdminCsrfToken(request.headers.get("x-csrf-token"));
+    await validateHospitalAdminCsrfToken(request.headers.get("x-csrf-token"));
   } catch {
     return NextResponse.json(
       { error: "Invalid security token. Refresh and try again." },
