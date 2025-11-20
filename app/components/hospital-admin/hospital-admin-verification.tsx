@@ -242,7 +242,7 @@ export function HospitalAdminVerification({
                 </p>
               ) : null}
             </form>
-            <div className="rounded-3xl border border-primary/30 bg-gradient-to-br from-primary/15 via-primary/5 to-transparent p-5 text-sm shadow-sm">
+            <div className="rounded-3xl border border-primary/30 bg-linear-to-br from-primary/15 via-primary/5 to-transparent p-5 text-sm shadow-sm">
               <div className="flex flex-col gap-2">
                 <p className="text-xs font-semibold uppercase tracking-widest text-primary">
                   Security checklist
@@ -257,7 +257,7 @@ export function HospitalAdminVerification({
                 </div>
                 <div className="h-2 w-full overflow-hidden rounded-full bg-primary/10">
                   <div
-                    className="h-full rounded-full bg-gradient-to-r from-primary to-emerald-500 transition-all"
+                    className="h-full rounded-full bg-linear-to-r from-primary to-emerald-500 transition-all"
                     style={{ width: `${progressPercent}%` }}
                   />
                 </div>
