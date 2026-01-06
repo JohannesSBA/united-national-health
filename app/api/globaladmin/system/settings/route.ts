@@ -7,6 +7,7 @@ import {
   upsertSystemSetting,
 } from "@/lib/services/global-admin/system";
 import { db } from "@/lib/db";
+import { buildAuditContext } from "@/lib/audit-context";
 
 export async function GET(request: Request) {
   await requireGlobalAdminFromRequest(request);
@@ -17,6 +18,7 @@ export async function GET(request: Request) {
 export async function PATCH(request: Request) {
   const session = await requireGlobalAdminFromRequest(request);
   const body = await request.json();
+  const auditContext = buildAuditContext(request.headers);
 
   switch (body.key) {
     case "maintenance_mode": {
@@ -24,6 +26,7 @@ export async function PATCH(request: Request) {
         body.value.enabled,
         body.value.reason,
         session.user.id,
+        auditContext,
       );
       break;
     }
@@ -32,6 +35,7 @@ export async function PATCH(request: Request) {
         body.value.required,
         body.value.enforcedFor ?? [],
         session.user.id,
+        auditContext,
       );
       break;
     }
@@ -40,6 +44,7 @@ export async function PATCH(request: Request) {
         body.value.retentionDays,
         body.value.legalHold ?? false,
         session.user.id,
+        auditContext,
       );
       break;
     }

@@ -2,6 +2,26 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ![United National Health high-level architecture](docs/Highlevel.png)
 
+## Receptionist Workspace Overview
+
+### Receptionist dashboard
+- Enhanced header and workspace navigation via reusable `WorkspaceNav`.
+- Live calendar (doctor color-coded, popovers with edit/reschedule/cancel/delete) and appointment desk (queue + check-in).
+- Doctor availability panel, stats, and “Next arrival” callout.
+- CSRF bootstrapping on the receptionist page for secure mutations.
+
+### Patients area (derived from appointments)
+- **List (/receptionist/patients):** Raw SQL aggregate (hospital-scoped) to list unique patients by `patientExternalId` with search, sort, filters (status, hasUpcoming), pagination. Shows latest name, last/next appointment, totals, completed/cancelled counts, and “View” action.
+- **Detail (/receptionist/patients/[patientExternalId]):** Hospital-scoped overview with latest name/ID, status summary, parsed notes (safe), raw notes viewer, upcoming and past appointment tables (doctor, check-in info, notes indicator), and check-in lead metrics.
+- **Data rules:** Patients are derived only from `Appointment`; no Patient/User relation is created. Queries avoid N+1; detail fetches bounded upcoming/past sets.
+
+### Receptionist security hardening
+- **Auth guard:** `requireReceptionist` + `requireHospitalContext` (supports multiple memberships, deterministic selection).
+- **CSRF:** Origin + token validation on receptionist mutation APIs (appointments create/update/cancel/delete/reschedule, check-in). CSRF token endpoint `/api/receptionist/csrf`; bootstrap script on receptionist page stores `window.__csrfToken` and sends header on client-side mutations.
+- **Hospital scoping:** Appointment mutation routes enforce hospitalId ownership; patient list/detail queries are hospital-scoped.
+- **Calendar actions:** Reschedule/delete only permitted on cancelled appointments; guarded by CSRF and hospital checks.
+
+## Getting Started
 ## Getting Started
 
 First, run the development server:
@@ -433,3 +453,86 @@ Use unique values per environment. `BETTER_AUTH_SECRET`/`AUTH_SECRET` must be st
 > **Database migrations:** recent features (email logging, duplicate-prevention, etc.) require the new migrations in `prisma/migrations/20251118120000_add_email_log`. Always run `npx prisma migrate deploy` (or `prisma migrate dev` locally) after pulling to ensure the `EmailLog` table and hospital contact uniqueness constraints exist before resetting passwords or sending other notifications.
 
 > **Local admin credentials:** By default the seed script creates `admin@unh.local` / `ChangeMeNow!123`. Override `SEED_ADMIN_*` before re-running the seed command to change or rotate these credentials, and never reuse the defaults outside local development.
+
+## Hospital Admin Operational Surface
+
+The `/hospitaladmin` module is a scoped, PHI-free operations suite for facility administrators. It brings full staff lifecycle tooling, department/resource controls, analytics, inventory management, and aggressive auditing—every mutation stays scoped to the admin’s hospital and mirrored to governance logs.
+
+### Authentication & Session Flow
+- `lib/require-hospital-admin.ts` validates the Better Auth session and ensures the signed-in user holds the `HospitalAdmin` role before any server component or API handler executes.
+- First-time admins must pass through `HospitalAdminVerification`, which fetches CSRF tokens from `/api/hospital-admin/csrf`, refreshes them every four minutes, enforces the password policy, rate-limits submissions, and exposes a logout button for immediate sign-out.
+- The shared `LogoutButton` component now adorns both the verification view and the authenticated shell, guaranteeing logout coverage across the hospital admin UI.
+
+### Staff Lifecycle & Auditing
+- Staff creation is limited to the operational roles Doctor, Nurse, Lab Technician, Billing, Receptionist, Care Coordinator, Pharmacist, and Administrator. The Prisma enum, Zod schema, and dropdown share this exact set.
+- Doctor-specific metadata (department, specialization, license number, level) is conditionally rendered—and required—only when the Doctor role is selected. Other roles skip those fields entirely.
+- Doctors cannot be created unless an active department exists inside the admin’s hospital. Departments enforce a configurable capacity ceiling (`DEPARTMENT_CAPACITY_LIMIT`, default 50 active assignments) before allowing new staff assignments, and doctor onboarding auto-creates the corresponding staff assignment row.
+- Staff provisioning spins up the user, credential, hospital membership, staff profile, and user-role mapping. Temporary passwords are generated server-side, hashed, emailed via `sendTemporaryPasswordEmail`, and logged (encrypted) in `EmailLog`.
+- Staff detail pages expose Activate, Mark on Leave, Disable, and Reset Credentials buttons. Credential resets regenerate a password, email the staffer, set `emailVerified=false`, log hospital/global audit entries, raise security alerts, and are rate-limited (three per hour per staff member).
+- Status changes (activate/disable) email the staff member (`sendStaffStatusEmail`), capture `AuditLog` entries, mirror to `AdminActivity`, and raise severity-tuned alerts to keep the security team informed.
+
+### Departments, Rooms, Scheduling, Inventory
+- Department assignments require an active department belonging to the same hospital and respecting the capacity limit. Soft-deleting departments nulls head references and logs the event.
+- Rooms and equipment use scoped Prisma queries with audit logging; equipment entries must reference existing rooms or remain unassigned.
+- Scheduling posts through server actions, includes a per-admin rate limit (20/minute), and logs every change. `/api/hospital-admin/schedule/[scheduleId]` supports GET/PATCH/DELETE with promise-based params to satisfy Next.js 16.
+- `/hospitaladmin/analytics` now renders inventory rows with inline minus/plus buttons. Each posts to `adjustInventoryQuantityAction`, clamping values above zero while intentionally skipping audit logs per the operational requirement.
+
+### Analytics & Reporting
+- `getHospitalAnalyticsSnapshot` aggregates staff counts for every approved role (including billing/receptionist/care coordinator), department utilization, room usage, shift coverage, and patient flow. The analytics page renders fixed cards for each role so counts are never hidden.
+- `/api/hospital-admin/analytics/export` streams CSV or PDF (via `pdf-lib`) that summarize staff distribution, room metrics, upcoming surgeries, and inventory alerts.
+
+### Rate Limiting, Alerts, Logging
+- Sensitive actions call `enforceRateLimit`: credential resets (3/hour/staff) and schedule creation (20/minute/admin) return user-friendly errors when exceeded, and reset abuse raises a `STAFF_RESET_RATE_LIMIT` alert.
+- `raiseSecurityAlert` records status flips, credential resets, and rate-limit violations so the global security team can respond immediately.
+- `logHospitalAudit` stores `Prisma.InputJsonValue` payloads, capturing hospital/actor/resource metadata plus optional JSON changes. `recordAdminActivity` mirrors high-sensitivity events, ensuring governance teams can trace every hospital-level action.
+
+### API Compliance & Utilities
+- All `/api/hospital-admin/*` handlers resolve `context.params` and `searchParams` as Promises per Next.js 16’s validator.
+- `/api/hospital-admin/csrf` is the only endpoint allowed to mutate CSRF cookies, complying with Next.js 13+ cookie rules.
+- Notifications (credential setup, status changes) run through `sendSystemEmail`, which encrypts payloads before logging and raises alerts on SMTP failures.
+
+Collectively these features give hospital administrators a secure, audited operational toolkit while keeping data scoped to their facility and invisible to unauthorized actors.
+
+
+## Receptionist Workspace (Scheduling & Check‑ins)
+
+The `/receptionist` module enables front desk staff to view and manage appointments, check in arriving patients, and view doctor availability for their hospital. It is scoped, auditable, and avoids PHI beyond display names and external MRNs.
+
+### What’s included
+- **RBAC guard**: `lib/require-receptionist.ts` ensures the signed-in user has the `Receptionist` role.
+- **Data models** (Prisma):
+  - `Appointment` with `AppointmentStatus` enum (`SCHEDULED`, `CHECKED_IN`, `CANCELLED`, `COMPLETED`)
+  - `DoctorAvailability` with `DoctorAvailabilityStatus` enum (`AVAILABLE`, `BUSY`, `OFFLINE`)
+  - `CheckInEvent` to audit receptionist-led arrivals
+- **Services**:
+  - `lib/services/receptionist/appointments.ts` (list/create/update/cancel)
+  - `lib/services/receptionist/checkin.ts` (check‑in, writes `CheckInEvent` and logs activity)
+  - `lib/services/receptionist/availability.ts` (list/set doctor availability)
+- **API routes** (all require `requireReceptionistFromRequest` and are rate‑limited + validated):
+  - `GET /api/receptionist/appointments` (filters by `hospitalId`, date range, `doctorId`, `statuses`)
+  - `POST /api/receptionist/appointments` (create)
+  - `GET /api/receptionist/appointments/[appointmentId]`
+  - `PATCH /api/receptionist/appointments/[appointmentId]` (update fields or `{ action: "cancel" }`)
+  - `POST /api/receptionist/checkin` (perform check‑in)
+  - `GET /api/receptionist/doctors/availability?hospitalId=...`
+  - `POST /api/receptionist/doctors/availability` (set status)
+  - `PATCH /api/receptionist/doctors/availability/[doctorId]` (set status for a doctor)
+- **Validation & throttling**:
+  - Zod schemas in `lib/validation/receptionist.ts`
+  - Reuses `lib/rate-limit.ts` per-actor limits
+- **UI**:
+  - Page: `app/receptionist/page.tsx`
+  - Components: `app/components/receptionist/{appointment-form,appointment-list,doctor-availability-panel,checkin-dialog}.tsx`
+
+### Setup
+- Run migrations and generate Prisma client (new models added):
+  - `npx prisma migrate dev`
+  - `npx prisma generate`
+- Seed demo data (adds 2 doctors, 1 receptionist, availability, and sample appointments for Metro):
+  - `npx prisma db seed`
+- Sign in as the seeded receptionist or grant the `Receptionist` role to a user, then visit `/receptionist`.
+
+### Notes
+- Only minimal patient identifiers are stored (external ID and display name).
+- All receptionist actions record `AdminActivity` with scope “Reception Desk” and category `ACCESS`.
+- If you edited the schema locally, always re-run `npx prisma generate` so new model types are available to TypeScript.

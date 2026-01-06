@@ -2,7 +2,12 @@ import { getSessionCookie } from "better-auth/cookies";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-const PROTECTED_MATCHERS = ["/admin", "/hospital", "/clinical"];
+const PROTECTED_MATCHERS = [
+  "/admin",
+  "/hospitaladmin",
+  "/clinical",
+  "/receptionist",
+];
 const INTERNAL_HEADER = "x-internal-maintenance-fetch";
 const MAINTENANCE_EXCLUDE_PREFIXES = [
   "/globaladmin",

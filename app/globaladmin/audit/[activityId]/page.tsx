@@ -60,12 +60,15 @@ export default async function AuditDetailPage({
     }));
 
   const cleanAction = stripEmailLogTag(activity.action);
-  const metadataEmailLogId =
-    activity.metadata &&
-    typeof activity.metadata === "object" &&
-    (activity.metadata as { emailLogId?: string }).emailLogId
-      ? (activity.metadata as { emailLogId?: string }).emailLogId
-      : null;
+  const metadata =
+    (activity.metadata as {
+      emailLogId?: string;
+      ipAddress?: string;
+      location?: string;
+      userAgent?: string;
+    } | null) ?? null;
+
+  const metadataEmailLogId = metadata?.emailLogId ?? null;
   const emailLogId = metadataEmailLogId ?? extractEmailLogId(activity.action);
   let emailLog: DecryptedEmailLog | null = null;
 
@@ -139,6 +142,33 @@ export default async function AuditDetailPage({
             <dd className="font-mono text-xs">{activity.id}</dd>
           </div>
         </dl>
+        {metadata?.ipAddress || metadata?.location || metadata?.userAgent ? (
+          <div className="rounded-xl border border-border/50 bg-muted/40 p-4 text-sm">
+            <p className="text-sm font-semibold">Request context</p>
+            <dl className="mt-2 space-y-1 text-xs text-muted-foreground">
+              {metadata?.ipAddress ? (
+                <div>
+                  <dt>IP address</dt>
+                  <dd className="font-mono text-sm text-foreground">
+                    {metadata.ipAddress}
+                  </dd>
+                </div>
+              ) : null}
+              {metadata?.location ? (
+                <div>
+                  <dt>Approximate location</dt>
+                  <dd>{metadata.location}</dd>
+                </div>
+              ) : null}
+              {metadata?.userAgent ? (
+                <div>
+                  <dt>User agent</dt>
+                  <dd className="break-words">{metadata.userAgent}</dd>
+                </div>
+              ) : null}
+            </dl>
+          </div>
+        ) : null}
         {actorUser ? (
           <div className="rounded-xl border border-border/50 bg-muted/40 p-4 text-sm">
             <p className="text-sm font-semibold">Matched Operator</p>

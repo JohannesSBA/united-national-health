@@ -1,5 +1,6 @@
 import { ActivityCategory, Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
+import { AuditContext, mergeAuditMetadata } from "@/lib/audit-context";
 
 export async function recordAdminActivity(
   actor: string,
@@ -7,14 +8,17 @@ export async function recordAdminActivity(
   scope: string,
   category: ActivityCategory = ActivityCategory.GOVERNANCE,
   metadata?: Prisma.InputJsonValue | null,
+  context?: AuditContext,
 ) {
+  const mergedMetadata = mergeAuditMetadata(metadata ?? undefined, context);
   await db.adminActivity.create({
     data: {
       actor,
       action,
       scope,
       category,
-      metadata: metadata ?? undefined,
+      metadata:
+        (mergedMetadata as Prisma.InputJsonValue | undefined) ?? undefined,
     },
   });
 }

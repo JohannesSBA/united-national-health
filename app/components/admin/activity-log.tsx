@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { AdministrativeActivity } from "@/lib/global-admin-data";
 import { stripEmailLogTag } from "@/lib/email-log-tag";
-import { History, Search } from "lucide-react";
+import { History, Loader2, Search } from "lucide-react";
 import type { ReactNode } from "react";
 import {
   Card,
@@ -13,20 +13,73 @@ import {
   CardTitle,
 } from "@/app/components/ui/card";
 import { Input } from "@/app/components/ui/input";
+import { Button } from "@/app/components/ui/button";
+
 export type ActivityLogProps = {
   activity: AdministrativeActivity[];
   actions?: ReactNode;
+  totalCount?: number;
+  pageSize?: number;
+  endpoint?: string;
 };
 
-export function ActivityLog({ activity, actions }: ActivityLogProps) {
+export function ActivityLog({
+  activity,
+  actions,
+  totalCount,
+  pageSize = 10,
+  endpoint = "/api/globaladmin/audit-logs",
+}: ActivityLogProps) {
   const [query, setQuery] = useState("");
   const [selectedDate, setSelectedDate] = useState("");
+  const [page, setPage] = useState(1);
+  const [results, setResults] = useState(activity);
+  const [total, setTotal] = useState(totalCount ?? activity.length);
+  const [isPageLoading, setIsPageLoading] = useState(false);
+
+  useEffect(() => {
+    setResults(activity);
+    setTotal(totalCount ?? activity.length);
+    setPage(1);
+  }, [activity, totalCount]);
+
+  useEffect(() => {
+    if (page === 1) {
+      return;
+    }
+    const controller = new AbortController();
+    async function fetchPage() {
+      setIsPageLoading(true);
+      try {
+        const response = await fetch(
+          `${endpoint}?page=${page}&pageSize=${pageSize}`,
+          { signal: controller.signal },
+        );
+        if (!response.ok) {
+          throw new Error("Unable to load audit logs");
+        }
+        const payload = await response.json();
+        setResults(payload.data ?? []);
+        setTotal(payload.meta?.total ?? payload.data.length ?? 0);
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          console.error("Failed to load audit logs", error);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsPageLoading(false);
+        }
+      }
+    }
+    fetchPage();
+    return () => controller.abort();
+  }, [page, pageSize, endpoint]);
 
   const filteredActivity = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     const normalizedDate = selectedDate.trim();
 
-    return activity.filter((event) => {
+    return results.filter((event) => {
       const cleanAction = stripEmailLogTag(event.action);
       const matchesQuery = normalizedQuery
         ? cleanAction.toLowerCase().includes(normalizedQuery) ||
@@ -39,7 +92,11 @@ export function ActivityLog({ activity, actions }: ActivityLogProps) {
         : true;
       return matchesQuery && matchesDate;
     });
-  }, [activity, query, selectedDate]);
+  }, [results, query, selectedDate]);
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const canPrev = page > 1;
+  const canNext = page < totalPages;
 
   return (
     <Card className="border border-border/70 bg-card shadow-sm">
@@ -81,7 +138,7 @@ export function ActivityLog({ activity, actions }: ActivityLogProps) {
         </div>
         {filteredActivity.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            {activity.length === 0
+            {total === 0
               ? "No administrative events have been recorded yet."
               : "No activity matches the selected filters."}
           </p>
@@ -89,7 +146,12 @@ export function ActivityLog({ activity, actions }: ActivityLogProps) {
           <ol className="space-y-4">
             {filteredActivity.map((event) => {
               const metadata =
-                (event.metadata as { emailLogId?: string } | null) ?? null;
+                (event.metadata as {
+                  emailLogId?: string;
+                  ipAddress?: string;
+                  location?: string;
+                  userAgent?: string;
+                } | null) ?? null;
               return (
                 <li
                   key={event.id}
@@ -104,11 +166,23 @@ export function ActivityLog({ activity, actions }: ActivityLogProps) {
                     </span>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    {event.actor} &middot; {event.scope}
+                    {event.actor} &middot; {event.scope} &middot;{" "}
+                    {event.category}
                   </p>
                   {metadata?.emailLogId ? (
                     <p className="text-xs text-muted-foreground">
                       Notification logged
+                    </p>
+                  ) : null}
+                  {metadata?.ipAddress || metadata?.location ? (
+                    <p className="text-xs text-muted-foreground">
+                      IP: {metadata?.ipAddress ?? "Unknown"}
+                      {metadata?.location ? ` · ${metadata.location}` : ""}
+                    </p>
+                  ) : null}
+                  {metadata?.userAgent ? (
+                    <p className="text-[11px] text-muted-foreground line-clamp-2">
+                      UA: {metadata.userAgent}
                     </p>
                   ) : null}
                   <Link
@@ -122,6 +196,38 @@ export function ActivityLog({ activity, actions }: ActivityLogProps) {
             })}
           </ol>
         )}
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
+          <p>
+            Page {page} of {totalPages} · {total} event
+            {total === 1 ? "" : "s"}
+          </p>
+          <div className="flex items-center gap-2">
+            {isPageLoading ? (
+              <span className="inline-flex items-center gap-2 text-muted-foreground">
+                <Loader2 className="size-4 animate-spin" />
+                Loading…
+              </span>
+            ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={!canPrev || isPageLoading}
+              onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+            >
+              Previous
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={!canNext || isPageLoading}
+              onClick={() => setPage((prev) => prev + 1)}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );

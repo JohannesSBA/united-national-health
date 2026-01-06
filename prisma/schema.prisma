@@ -15,19 +15,23 @@ datasource db {
 }
 
 model User {
-  id                  String         @id @default(uuid())
-  email               String         @unique
-  name                String
-  emailVerified       Boolean        @default(false)
-  image               String?
-  status              UserStatus     @default(ACTIVE)
-  roles               UserRole[]
-  hospitalMemberships HospitalUser[]
-  accounts            Account[]
-  sessions            Session[]
-  createdAt           DateTime       @default(now())
-  updatedAt           DateTime       @updatedAt
-
+  id                   String               @id @default(uuid())
+  email                String               @unique
+  name                 String
+  emailVerified        Boolean              @default(false)
+  image                String?
+  status               UserStatus           @default(ACTIVE)
+  roles                UserRole[]
+  hospitalMemberships  HospitalUser[]
+  staffProfiles        StaffMember[]
+  auditLogs            AuditLog[]
+  doctorAppointments   Appointment[]
+  doctorAvailabilities DoctorAvailability[]
+  receptionistCheckIns CheckInEvent[]
+  accounts             Account[]
+  sessions             Session[]
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
 }
 
 model Role {
@@ -53,18 +57,29 @@ model UserRole {
 }
 
 model Hospital {
-  id        String         @id @default(uuid())
-  name      String         @unique
-  code      String?        @unique
-  region    String?
-  contactEmail String?
-  contactPhone String?
-  description String?
-  status    HospitalStatus @default(PENDING)
-  members   HospitalUser[]
-  onboardingActions OnboardingAction[]
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
+  id                   String                @id @default(uuid())
+  name                 String                @unique
+  code                 String?               @unique
+  region               String?
+  contactEmail         String?
+  contactPhone         String?
+  description          String?
+  status               HospitalStatus        @default(PENDING)
+  members              HospitalUser[]
+  onboardingActions    OnboardingAction[]
+  staff                StaffMember[]
+  departments          Department[]
+  rooms                Room[]
+  equipment            Equipment[]
+  schedules            Schedule[]
+  inventoryItems       InventoryItem[]
+  staffAssignments     StaffAssignment[]
+  auditLogs            AuditLog[]
+  appointments         Appointment[]
+  doctorAvailabilities DoctorAvailability[]
+  patientFlow          PatientFlowSnapshot[]
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
 
   @@unique([contactEmail])
   @@unique([contactPhone])
@@ -188,39 +203,294 @@ enum CrossAccessPolicyStatus {
   REVOKED
 }
 
+enum StaffRole {
+  DOCTOR
+  NURSE
+  LAB_TECHNICIAN
+  BILLING
+  RECEPTIONIST
+  CARE_COORDINATOR
+  PHARMACIST
+  ADMINISTRATOR
+}
+
+enum StaffStatus {
+  ACTIVE
+  INACTIVE
+  DISABLED
+}
+
+enum DepartmentStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum RoomType {
+  WARD
+  ICU
+  OPERATING_THEATER
+  LAB
+  PHARMACY
+  ADMINISTRATION
+  OTHER
+}
+
+enum RoomStatus {
+  ACTIVE
+  INACTIVE
+  MAINTENANCE
+}
+
+enum EquipmentStatus {
+  AVAILABLE
+  IN_USE
+  MAINTENANCE
+  RETIRED
+}
+
+enum ScheduleType {
+  DOCTOR_SHIFT
+  NURSE_SHIFT
+  ON_CALL
+  SURGERY
+}
+
+enum ScheduleStatus {
+  DRAFT
+  CONFIRMED
+  CANCELED
+}
+
+enum InventoryStatus {
+  NORMAL
+  LOW_STOCK
+  OUT_OF_STOCK
+  ORDERED
+}
+
 model OnboardingAction {
-  id        String            @id @default(uuid())
+  id         String             @id @default(uuid())
   hospitalId String
-  action    String
-  owner     String
-  dueDate   DateTime
-  priority  OnboardingPriority
-  status    OnboardingStatus   @default(PENDING)
-  hospital  Hospital           @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
-  createdAt DateTime           @default(now())
-  updatedAt DateTime           @updatedAt
+  action     String
+  owner      String
+  dueDate    DateTime
+  priority   OnboardingPriority
+  status     OnboardingStatus   @default(PENDING)
+  hospital   Hospital           @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
 
   @@index([hospitalId])
   @@index([status])
 }
 
+model StaffMember {
+  id                String            @id @default(uuid())
+  userId            String
+  hospitalId        String
+  role              StaffRole
+  phone             String?
+  specialization    String?
+  licenseNumber     String?
+  department        String?
+  level             String?
+  status            StaffStatus       @default(ACTIVE)
+  deletedAt         DateTime?
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hospital          Hospital          @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  assignments       StaffAssignment[]
+  headedDepartments Department[]      @relation("DepartmentHead")
+  schedules         Schedule[]
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@unique([hospitalId, userId])
+  @@index([hospitalId, role])
+  @@index([status])
+}
+
+model Department {
+  id          String            @id @default(uuid())
+  hospitalId  String
+  name        String
+  description String?
+  status      DepartmentStatus  @default(ACTIVE)
+  headStaffId String?
+  deletedAt   DateTime?
+  hospital    Hospital          @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  head        StaffMember?      @relation("DepartmentHead", fields: [headStaffId], references: [id])
+  assignments StaffAssignment[]
+  schedules   Schedule[]
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@unique([hospitalId, name])
+  @@index([hospitalId, status])
+}
+
+model StaffAssignment {
+  id           String      @id @default(uuid())
+  staffId      String
+  departmentId String
+  hospitalId   String
+  role         StaffRole
+  isLead       Boolean     @default(false)
+  startsAt     DateTime
+  endsAt       DateTime?
+  notes        String?
+  staff        StaffMember @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  department   Department  @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  hospital     Hospital    @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@index([staffId])
+  @@index([departmentId])
+  @@index([hospitalId])
+  @@index([isLead])
+}
+
+model Room {
+  id           String      @id @default(uuid())
+  hospitalId   String
+  name         String
+  code         String?
+  type         RoomType
+  capacity     Int         @default(1)
+  occupiedBeds Int         @default(0)
+  status       RoomStatus  @default(ACTIVE)
+  notes        String?
+  deletedAt    DateTime?
+  hospital     Hospital    @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  equipment    Equipment[]
+  schedules    Schedule[]
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@unique([hospitalId, name])
+  @@index([hospitalId, status])
+}
+
+model Equipment {
+  id           String          @id @default(uuid())
+  hospitalId   String
+  roomId       String?
+  name         String
+  type         String
+  serialNumber String?
+  status       EquipmentStatus @default(AVAILABLE)
+  notes        String?
+  deletedAt    DateTime?
+  hospital     Hospital        @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  room         Room?           @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@index([hospitalId])
+  @@index([roomId])
+  @@index([status])
+}
+
+model Schedule {
+  id           String         @id @default(uuid())
+  hospitalId   String
+  staffId      String?
+  departmentId String?
+  roomId       String?
+  title        String
+  scheduleType ScheduleType
+  startsAt     DateTime
+  endsAt       DateTime
+  status       ScheduleStatus @default(CONFIRMED)
+  metadata     Json?
+  createdBy    String
+  deletedAt    DateTime?
+  hospital     Hospital       @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  staff        StaffMember?   @relation(fields: [staffId], references: [id], onDelete: SetNull)
+  department   Department?    @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  room         Room?          @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@index([hospitalId, scheduleType])
+  @@index([staffId])
+  @@index([departmentId])
+  @@index([roomId])
+  @@index([startsAt])
+}
+
+model AuditLog {
+  id           String   @id @default(uuid())
+  hospitalId   String
+  actorId      String
+  action       String
+  resourceType String
+  resourceId   String?
+  changes      Json?
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime @default(now())
+  hospital     Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  actor        User     @relation(fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([hospitalId])
+  @@index([actorId])
+  @@index([resourceType])
+  @@index([createdAt])
+}
+
+model InventoryItem {
+  id         String          @id @default(uuid())
+  hospitalId String
+  name       String
+  category   String?
+  quantity   Int             @default(0)
+  unit       String?
+  threshold  Int             @default(0)
+  status     InventoryStatus @default(NORMAL)
+  deletedAt  DateTime?
+  hospital   Hospital        @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  @@index([hospitalId])
+  @@index([status])
+}
+
+model PatientFlowSnapshot {
+  id                  String   @id @default(uuid())
+  hospitalId          String
+  recordedFor         DateTime
+  patientCount        Int
+  admissions          Int
+  discharges          Int
+  bedOccupancyPercent Float
+  avgWaitMinutes      Int?
+  hospital            Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([hospitalId, recordedFor])
+  @@index([recordedFor])
+}
+
 model AdminActivity {
-  id        String   @id @default(uuid())
+  id        String           @id @default(uuid())
   actor     String
   action    String
   scope     String
   category  ActivityCategory @default(GOVERNANCE)
   metadata  Json?
-  createdAt DateTime @default(now())
+  createdAt DateTime         @default(now())
 }
 
 model SystemStatus {
-  id              String             @id @default(uuid())
-  overallStatus   SystemStatusState
-  uptimePercent   Float
-  lastIncidentAt  DateTime?
+  id                String            @id @default(uuid())
+  overallStatus     SystemStatusState
+  uptimePercent     Float
+  lastIncidentAt    DateTime?
   deploymentVersion String
-  createdAt       DateTime           @default(now())
+  createdAt         DateTime          @default(now())
 }
 
 model SystemSetting {
@@ -256,12 +526,12 @@ model AccessPolicy {
 }
 
 model SecurityAlert {
-  id             String   @id @default(uuid())
+  id             String    @id @default(uuid())
   type           String
   severity       String
   description    String
-  resolved       Boolean  @default(false)
-  createdAt      DateTime @default(now())
+  resolved       Boolean   @default(false)
+  createdAt      DateTime  @default(now())
   resolvedAt     DateTime?
   acknowledgedBy String?
 }
@@ -281,4 +551,74 @@ model EmailLog {
   bodyCiphertext String   @map("bodyHtml")
   metadata       Json?
   createdAt      DateTime @default(now())
+}
+
+//
+// Receptionist workspace models
+//
+
+enum AppointmentStatus {
+  SCHEDULED
+  CHECKED_IN
+  CANCELLED
+  COMPLETED
+}
+
+enum DoctorAvailabilityStatus {
+  AVAILABLE
+  BUSY
+  OFFLINE
+}
+
+model Appointment {
+  id                 String            @id @default(uuid())
+  hospitalId         String
+  doctorId           String
+  patientExternalId  String
+  patientDisplayName String
+  startsAt           DateTime
+  endsAt             DateTime
+  status             AppointmentStatus @default(SCHEDULED)
+  notes              Json?
+  hospital           Hospital          @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  doctor             User              @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  checkInEvents      CheckInEvent[]
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  @@index([hospitalId, startsAt])
+  @@index([doctorId, startsAt])
+  @@index([status])
+}
+
+model DoctorAvailability {
+  id         String                   @id @default(uuid())
+  doctorId   String
+  hospitalId String
+  status     DoctorAvailabilityStatus @default(OFFLINE)
+  until      DateTime?
+  updatedBy  String?
+  doctor     User                     @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  hospital   Hospital                 @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  createdAt  DateTime                 @default(now())
+  updatedAt  DateTime                 @updatedAt
+
+  @@unique([doctorId, hospitalId])
+  @@index([hospitalId])
+  @@index([status])
+}
+
+model CheckInEvent {
+  id             String      @id @default(uuid())
+  appointmentId  String
+  receptionistId String
+  at             DateTime    @default(now())
+  desk           String?
+  notes          String?
+  appointment    Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  receptionist   User        @relation(fields: [receptionistId], references: [id], onDelete: Cascade)
+  createdAt      DateTime    @default(now())
+
+  @@index([appointmentId])
+  @@index([receptionistId])
 }

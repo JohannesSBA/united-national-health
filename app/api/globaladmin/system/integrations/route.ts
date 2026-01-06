@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireGlobalAdminFromRequest } from "@/lib/require-global-admin";
 import { createIntegrationKey } from "@/lib/services/global-admin/system";
+import { buildAuditContext } from "@/lib/audit-context";
 
 export async function GET(request: Request) {
   await requireGlobalAdminFromRequest(request);
@@ -14,12 +15,14 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const session = await requireGlobalAdminFromRequest(request);
   const body = await request.json();
+  const auditContext = buildAuditContext(request.headers);
   const { integration, token } = await createIntegrationKey(
     {
       name: body.name,
       description: body.description,
     },
     session.user.id,
+    auditContext,
   );
 
   return NextResponse.json({ data: integration, token }, { status: 201 });

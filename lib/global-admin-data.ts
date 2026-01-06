@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import {
+  ActivityCategory,
   OnboardingPriority,
   SystemStatusState,
 } from "@/generated/prisma/client";
@@ -26,6 +27,7 @@ export type AdministrativeActivity = {
   actor: string;
   action: string;
   scope: string;
+  category: ActivityCategory;
   metadata?: Record<string, unknown> | null;
 };
 
@@ -35,6 +37,7 @@ export type GlobalAdminDashboardData = {
   systemStatus: SystemStatusSummary;
   pendingActions: PendingOnboardingAction[];
   recentActivity: AdministrativeActivity[];
+  recentActivityTotal: number;
 };
 
 const DEFAULT_DEPLOYMENT_VERSION =
@@ -132,14 +135,19 @@ export async function fetchPendingOnboardingActions(): Promise<
   }));
 }
 
-export async function fetchAdministrativeActivity(): Promise<
-  AdministrativeActivity[]
-> {
+export async function fetchAdministrativeActivity({
+  take = 10,
+  skip = 0,
+}: {
+  take?: number;
+  skip?: number;
+} = {}): Promise<AdministrativeActivity[]> {
   const events = await db.adminActivity.findMany({
     orderBy: {
       createdAt: "desc",
     },
-    take: 10,
+    take,
+    skip,
   });
 
   return events.map((event) => ({
@@ -148,18 +156,29 @@ export async function fetchAdministrativeActivity(): Promise<
     actor: event.actor,
     action: event.action,
     scope: event.scope,
+    category: event.category,
     metadata: (event.metadata as Record<string, unknown> | null) ?? null,
   }));
 }
 
+export function countAdministrativeActivity() {
+  return db.adminActivity.count();
+}
+
 export async function getGlobalAdminDashboardData(): Promise<GlobalAdminDashboardData> {
-  const [aggregates, systemStatus, pendingActions, recentActivity] =
-    await Promise.all([
-      fetchHospitalAggregates(),
-      fetchSystemStatusSummary(),
-      fetchPendingOnboardingActions(),
-      fetchAdministrativeActivity(),
-    ]);
+  const [
+    aggregates,
+    systemStatus,
+    pendingActions,
+    recentActivity,
+    activityTotal,
+  ] = await Promise.all([
+    fetchHospitalAggregates(),
+    fetchSystemStatusSummary(),
+    fetchPendingOnboardingActions(),
+    fetchAdministrativeActivity(),
+    countAdministrativeActivity(),
+  ]);
 
   return {
     totalHospitals: aggregates.totalHospitals,
@@ -167,5 +186,6 @@ export async function getGlobalAdminDashboardData(): Promise<GlobalAdminDashboar
     systemStatus,
     pendingActions,
     recentActivity,
+    recentActivityTotal: activityTotal,
   };
 }

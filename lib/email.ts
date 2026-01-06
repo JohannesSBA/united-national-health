@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import {
   buildAdminWelcomeEmail,
   buildHospitalStatusEmail,
+  buildStaffStatusEmail,
 } from "./email-templates";
 import { encryptEmailBody } from "@/lib/email-encryption";
 import { raiseSecurityAlert } from "@/lib/services/global-admin/activity";
@@ -177,6 +178,32 @@ export async function sendHospitalStatusEmail({
       hospitalName,
       status,
       reason,
+    },
+  });
+}
+
+export async function sendStaffStatusEmail({
+  to,
+  name,
+  status,
+  hospitalName,
+}: {
+  to: string;
+  name: string;
+  status: string;
+  hospitalName: string;
+}) {
+  const template = buildStaffStatusEmail({ name, status, hospitalName });
+  return sendSystemEmail({
+    to,
+    subject: template.subject,
+    html: template.html,
+    text: template.text,
+    metadata: {
+      template: "staff_status_change",
+      status,
+      staffName: name,
+      hospitalName,
     },
   });
 }

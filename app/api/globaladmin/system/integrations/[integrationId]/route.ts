@@ -5,6 +5,7 @@ import {
   rotateIntegrationKey,
   setIntegrationStatus,
 } from "@/lib/services/global-admin/system";
+import { buildAuditContext } from "@/lib/audit-context";
 
 export async function PATCH(
   request: NextRequest,
@@ -13,9 +14,14 @@ export async function PATCH(
   const { integrationId } = await context.params;
   const session = await requireGlobalAdminFromRequest(request);
   const body = await request.json();
+  const auditContext = buildAuditContext(request.headers);
 
   if (body.action === "rotate") {
-    const result = await rotateIntegrationKey(integrationId, session.user.id);
+    const result = await rotateIntegrationKey(
+      integrationId,
+      session.user.id,
+      auditContext,
+    );
     return NextResponse.json(result);
   }
 
@@ -24,6 +30,7 @@ export async function PATCH(
       integrationId,
       body.status as IntegrationStatus,
       session.user.id,
+      auditContext,
     );
     return NextResponse.json({ data: integration });
   }

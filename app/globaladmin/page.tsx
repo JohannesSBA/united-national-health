@@ -73,7 +73,11 @@ export default async function GlobalAdminPage() {
       </section>
 
       <section className="grid gap-6">
-        <ActivityLog activity={dashboardData.recentActivity} />
+        <ActivityLog
+          activity={dashboardData.recentActivity}
+          totalCount={dashboardData.recentActivityTotal}
+          pageSize={10}
+        />
       </section>
 
       <section className="space-y-4 rounded-3xl border border-border/70 bg-card/95 p-6 shadow-sm">

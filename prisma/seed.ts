@@ -332,6 +332,94 @@ async function main() {
     }),
   );
 
+  // Seed doctors and a receptionist for Metro Regional Hospital
+  const metroHospitalId = hospitalLookup.get("Metro Regional Hospital")!;
+  const doctorRoleId = roleLookup.get("Doctor");
+  const receptionistRoleId = roleLookup.get("Receptionist");
+  if (!doctorRoleId || !receptionistRoleId) {
+    throw new Error("Doctor/Receptionist roles missing; seed aborted.");
+  }
+
+  const doctorUsers = await Promise.all(
+    [
+      { email: "dr.rivera@unh.local", name: "Dr. Sofia Rivera" },
+      { email: "dr.owens@unh.local", name: "Dr. Marcus Owens" },
+    ].map((seed) =>
+      ensureUser({
+        email: seed.email,
+        name: seed.name,
+        password: staffPassword,
+        roleIds: [doctorRoleId],
+        hospitalIds: [metroHospitalId],
+      }),
+    ),
+  );
+
+  const receptionistUser = await ensureUser({
+    email: "reception.metro@unh.local",
+    name: "Front Desk Metro",
+    password: staffPassword,
+    roleIds: [receptionistRoleId],
+    hospitalIds: [metroHospitalId],
+  });
+
+  // Sample appointments and availability using untyped handle for new models
+  const anyDb = db as any;
+  const now = new Date();
+  const in30 = new Date(now.getTime() + 30 * 60 * 1000);
+  const in60 = new Date(now.getTime() + 60 * 60 * 1000);
+
+  await Promise.all([
+    anyDb.appointment.upsert({
+      where: { id: "appt-metro-1" },
+      update: {},
+      create: {
+        id: "appt-metro-1",
+        hospitalId: metroHospitalId,
+        doctorId: doctorUsers[0].id,
+        patientExternalId: "MRN-10001",
+        patientDisplayName: "Alex Johnson",
+        startsAt: now,
+        endsAt: in30,
+        status: "SCHEDULED",
+      },
+    }),
+    anyDb.appointment.upsert({
+      where: { id: "appt-metro-2" },
+      update: {},
+      create: {
+        id: "appt-metro-2",
+        hospitalId: metroHospitalId,
+        doctorId: doctorUsers[1].id,
+        patientExternalId: "MRN-10002",
+        patientDisplayName: "Jamie Lee",
+        startsAt: in30,
+        endsAt: in60,
+        status: "SCHEDULED",
+      },
+    }),
+  ]);
+
+  await Promise.all(
+    doctorUsers.map((doc) =>
+      anyDb.doctorAvailability.upsert({
+        where: {
+          doctorId_hospitalId: {
+            doctorId: doc.id,
+            hospitalId: metroHospitalId,
+          },
+        },
+        update: { status: "AVAILABLE", updatedBy: receptionistUser.email },
+        create: {
+          doctorId: doc.id,
+          hospitalId: metroHospitalId,
+          status: "AVAILABLE",
+          updatedBy: receptionistUser.email,
+        },
+      }),
+    ),
+  );
+
   await db.systemStatus.upsert({
     where: { id: "system-status-primary" },
     update: {

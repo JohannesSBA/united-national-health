@@ -167,3 +167,45 @@ Sign in immediately and rotate this password. If you did not expect this, contac
     text,
   };
 }
+
+export function buildStaffStatusEmail({
+  name,
+  status,
+  hospitalName,
+}: {
+  name: string;
+  status: string;
+  hospitalName: string;
+}) {
+  const readableStatus = status
+    .toLowerCase()
+    .replace(/_/g, " ")
+    .replace(/^\w/, (c) => c.toUpperCase());
+  const body = `
+    <div class="panel">
+      <p>Hello ${escapeHtml(name)}, your operational access for <strong>${escapeHtml(
+        hospitalName,
+      )}</strong> has been updated.</p>
+      <p><strong>New status:</strong> ${escapeHtml(readableStatus)}</p>
+      <p>If you believe this change is in error, contact your hospital administrator immediately.</p>
+    </div>
+    <p class="footer">
+      This message only references operational access—no patient data is included.
+    </p>
+  `;
+  const html = renderEmailLayout({
+    heading: `Access update for ${hospitalName}`,
+    tag: "Access Change",
+    body,
+  });
+  const text = `Hello ${name},
+Your access for ${hospitalName} has been updated.
+New status: ${readableStatus}
+
+If this is unexpected, contact your hospital administrator immediately.`;
+  return {
+    subject: `Access update: ${readableStatus}`,
+    html,
+    text,
+  };
+}

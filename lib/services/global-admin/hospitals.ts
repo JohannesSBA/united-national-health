@@ -12,6 +12,7 @@ import {
   normalizeContactPhone,
 } from "@/lib/contact-utils";
 import { sendHospitalStatusEmail } from "@/lib/email";
+import { AuditContext } from "@/lib/audit-context";
 
 export type CreateHospitalInput = {
   name: string;
@@ -63,6 +64,7 @@ async function ensureUniqueContacts({
 export async function createHospital(
   input: CreateHospitalInput,
   actor: string,
+  auditContext?: AuditContext,
 ) {
   const code = (input.code ?? generateHospitalCode(input.name)).toUpperCase();
   const contactEmail = normalizeContactEmail(input.contactEmail);
@@ -127,6 +129,8 @@ export async function createHospital(
     `Registered hospital ${hospital.name}`,
     "Platform Governance",
     ActivityCategory.GOVERNANCE,
+    undefined,
+    auditContext,
   );
 
   return hospital;
@@ -141,6 +145,7 @@ export async function updateHospitalDetails(
     description?: string;
   },
   actor: string,
+  auditContext?: AuditContext,
 ) {
   const contactEmail = normalizeContactEmail(data.contactEmail);
   const contactPhone = normalizeContactPhone(data.contactPhone);
@@ -164,6 +169,8 @@ export async function updateHospitalDetails(
     `Updated details for ${hospital.name}`,
     "Platform Governance",
     ActivityCategory.GOVERNANCE,
+    undefined,
+    auditContext,
   );
 
   return hospital;
@@ -174,6 +181,7 @@ export async function changeHospitalStatus(
   status: HospitalStatus,
   actor: string,
   reason: string,
+  auditContext?: AuditContext,
 ) {
   const trimmedReason = reason.trim();
   if (!trimmedReason) {
@@ -201,6 +209,7 @@ export async function changeHospitalStatus(
     "Platform Governance",
     ActivityCategory.GOVERNANCE,
     emailLogId ? { emailLogId } : undefined,
+    auditContext,
   );
 
   return hospital;
@@ -210,6 +219,7 @@ export async function handleOnboardingDecision(
   onboardingActionId: string,
   decision: "approve" | "reject",
   actor: string,
+  auditContext?: AuditContext,
 ) {
   const status =
     decision === "approve"
@@ -228,6 +238,8 @@ export async function handleOnboardingDecision(
     }`,
     "Onboarding",
     ActivityCategory.ACCESS,
+    undefined,
+    auditContext,
   );
 
   if (decision === "approve") {
@@ -261,6 +273,7 @@ export async function createCustomOnboardingAction({
   dueDate,
   priority,
   actor,
+  auditContext,
 }: {
   hospitalId: string;
   action: string;
@@ -268,6 +281,7 @@ export async function createCustomOnboardingAction({
   dueDate: string;
   priority: OnboardingPriority;
   actor: string;
+  auditContext?: AuditContext;
 }) {
   if (!hospitalId) {
     throw new Error("Hospital ID required");
@@ -292,6 +306,8 @@ export async function createCustomOnboardingAction({
     `Added onboarding task "${action}"`,
     "Onboarding",
     ActivityCategory.ACCESS,
+    undefined,
+    auditContext,
   );
 
   return onboardingAction;
