@@ -34,9 +34,12 @@ export default async function StaffDetailPage({
 }: {
   params: { staffId: string };
 }) {
+  const resolvedParams = await params;
   const session = await requireHospitalAdmin();
   const scope = await getHospitalScope(session.user.id);
-  const staff = await getStaffMember(scope.hospitalId, params.staffId);
+  const staff = await getStaffMember(scope.hospitalId, resolvedParams.staffId);
+  console.log(staff);
+  console.log(scope.hospitalId, resolvedParams.staffId);
 
   if (!staff) {
     return (

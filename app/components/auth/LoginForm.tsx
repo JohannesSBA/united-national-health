@@ -7,7 +7,7 @@ import { Card, CardHeader, CardContent } from "@/app/components/ui/card";
 import { Label } from "@/app/components/ui/label";
 import { Input } from "@/app/components/ui/input";
 import { Button } from "@/app/components/ui/button";
-import { Loader2, ShieldCheck } from "lucide-react";
+import { EyeIcon, EyeOffIcon, Loader2, ShieldCheck } from "lucide-react";
 import axios from "axios";
 
 export function LoginForm() {
@@ -16,6 +16,7 @@ export function LoginForm() {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -30,6 +31,7 @@ export function LoginForm() {
         (role: { role: { name: string } }) => role.role.name,
       );
       if (roles.length === 1) {
+        console.log(roles[0].toLowerCase());
         router.push(`/${roles[0].toLowerCase()}`);
       } else {
         router.push(`/dashboard`);
@@ -83,16 +85,30 @@ export function LoginForm() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              required
-              autoComplete="current-password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              aria-invalid={!!error}
-            />
+            <div className="relative">
+              <Input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                required
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                aria-invalid={!!error}
+              />
+              <button
+                type="button"
+                className="absolute right-2 top-1/2 -translate-y-1/2"
+                onClick={() => setShowPassword(!showPassword)}
+              >
+                {showPassword ? (
+                  <EyeIcon className="size-4" />
+                ) : (
+                  <EyeOffIcon className="size-4" />
+                )}
+              </button>
+            </div>
           </div>
+
           <Button type="submit" className="w-full" disabled={isLoading}>
             {isLoading ? (
               <>
